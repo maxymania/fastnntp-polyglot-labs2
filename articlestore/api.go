@@ -29,7 +29,7 @@ type EFail struct{}
 func (e EFail) Error() string { return "Failed" }
 
 type StorageR interface {
-	StoreWriteMessage(id, msg []byte) error
+	StoreWriteMessage(id, msg []byte, expire uint64) error
 }
 type StorageW interface {
 	StoreReadMessage(id []byte, over,head,body bool) (bufferex.Binary,error)
