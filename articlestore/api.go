@@ -28,11 +28,18 @@ import "github.com/maxymania/fastnntp-polyglot-labs/bufferex"
 type EFail struct{}
 func (e EFail) Error() string { return "Failed" }
 
+// If you don't have any other error, use this.
+var VEFail error = EFail{}
+
 type StorageR interface {
 	StoreWriteMessage(id, msg []byte, expire uint64) error
 }
 type StorageW interface {
 	StoreReadMessage(id []byte, over,head,body bool) (bufferex.Binary,error)
+}
+type Storage interface {
+	StorageR
+	StorageW
 }
 
 // Encode a message
