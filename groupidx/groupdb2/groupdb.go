@@ -24,23 +24,15 @@ SOFTWARE.
 package groupdb2
 
 import bolt "github.com/coreos/bbolt"
-import "encoding/binary"
 import "github.com/maxymania/gonbase/nubrin"
 
 var (
 	iTable = []byte("table")
 	iIndex = []byte("index")
 	iCount = []byte("count")
+	
+	iFree  = []byte("free")
 )
-
-func btoi(b []byte) uint64 {
-	return binary.BigEndian.Uint64(b)
-}
-func itob(i uint64) []byte {
-	b := make([]byte,8)
-	binary.BigEndian.PutUint64(b,i)
-	return b
-}
 
 type Tx struct{
 	inner *bolt.Bucket
@@ -54,10 +46,41 @@ func (t *Tx) createGroup(group []byte) (*bolt.Bucket,error) {
 	_,err = bkt.CreateBucketIfNotExists(iIndex)
 	if err!=nil { return nil,err }
 	if len(bkt.Get(iCount))<8 {
-		bkt.Put(iCount,itob(0))
+		err = bkt.Put(iCount,nubrin.Encode(0))
 	}
+	if err!=nil { return nil,err }
+	_,err = bkt.CreateBucketIfNotExists(iFree)
+	if err!=nil { return nil,err }
 	return bkt,err
 }
+
+func (t *Tx) reserve(group []byte) (uint64,error) {
+	bkt,err := t.createGroup(group)
+	if err!=nil { return 0,err }
+	f := bkt.Bucket(iFree)
+	
+	/* If there any entry within the Free-Set, extract and delete the lowest one. */
+	{
+		c := f.Cursor()
+		k,_ := c.First()
+		if len(k)!=0 {
+			err := c.Delete()
+			if err!=nil { return 0,err }
+			return nubrin.Decode(k),nil
+		}
+	}
+	
+	/* Otherwise get the next auto-increment. */
+	n,err := f.NextSequence()
+	if err!=nil { return 0,err }
+	if n==0 {
+		n,err = f.NextSequence()
+		if err!=nil { return 0,err }
+	}
+	
+	return n,nil
+}
+
 func (t *Tx) AssignArticleToGroup(group []byte, num, exp uint64, id []byte) error {
 	bkt,err := t.createGroup(group)
 	
@@ -72,7 +95,7 @@ func (t *Tx) AssignArticleToGroup(group []byte, num, exp uint64, id []byte) erro
 	err = tsi.Insert(num,exp,id)
 	if err!=nil { return err }
 	
-	return bkt.Put(iCount,itob(btoi(  bkt.Get(iCount)  )+1))
+	return bkt.Put(iCount,nubrin.Encode(nubrin.Decode(  bkt.Get(iCount)  )+1))
 }
 func (t *Tx) ArticleGroupStat(group []byte, num int64, id_buf []byte) ([]byte, bool) {
 	bkt := t.inner.Bucket(group)
@@ -95,10 +118,7 @@ func (t *Tx) GroupHeadInsert(groups [][]byte, buf []int64) ([]int64, error) {
 	if cap(buf)<len(groups) { buf = make([]int64,len(groups)) } else { buf = buf[:len(groups)] }
 	
 	for i,group := range groups {
-		bkt,err := t.createGroup(group)
-		if err!=nil { return nil,err }
-		
-		n,err := bkt.Bucket(iTable).NextSequence()
+		n,err := t.reserve(group)
 		
 		if err!=nil { return nil,err }
 		
@@ -108,8 +128,17 @@ func (t *Tx) GroupHeadInsert(groups [][]byte, buf []int64) ([]int64, error) {
 	return buf,nil
 }
 func (t *Tx) GroupHeadRevert(groups [][]byte, nums []int64) error {
+	for i,group := range groups {
+		bkt,err := t.createGroup(group)
+		
+		if err!=nil { return err }
+		
+		/* We put the number back into the Free-Set. */
+		err = bkt.Bucket(iFree).Put(nubrin.Encode(uint64(nums[i])),iFree)
+		
+		if err!=nil { return err }
+	}
+	
 	return nil
 }
-
-
 
