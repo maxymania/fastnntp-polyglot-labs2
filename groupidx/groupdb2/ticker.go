@@ -21,37 +21,21 @@ SOFTWARE.
 */
 
 
-package pgbackend
+package groupdb2
 
+import "time"
 
-import "database/sql"
+var current uint64
 
-
-type Base struct{
-	DB *sql.DB
+func ticker() {
+	tt := time.Tick(time.Second)
+	for {
+		current = uint64((<- tt).Unix())
+	}
 }
 
-func (b *Base) CreateTables() {
-	b.DB.Exec(`
-	CREATE TABLE grp2mid (
-		ngrp bytea,
-		mnum bigint,
-		msgid bytea,
-		expir date,
-		PRIMARY KEY(ngrp,num)
-	)
-	`)
+func init() {
+	current = uint64(time.Now().Unix())
+	go ticker()
 }
-
-func (b *Base) GroupHeadInsert(groups [][]byte, buf []int64) ([]int64, error) {
-	
-	return nil,nil
-}
-func (b *Base) GroupHeadRevert(groups [][]byte, nums []int64) error {
-	return nil
-}
-func (b *Base) ArticleGroupStat(group []byte, num, exp int64, id_buf []byte) ([]byte, bool) {
-	return nil,nil
-}
-
 

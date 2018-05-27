@@ -30,6 +30,6 @@ type gGroupIndex struct{
 	ArticleGroupStat(group []byte, num int64, id_buf []byte) ([]byte, bool)
 	
 	// Newly introduced.
-	AssignArticleToGroup(group []byte, num uint64, id []byte) error
+	AssignArticleToGroup(group []byte, num, exp uint64, id []byte) error
 }
 
