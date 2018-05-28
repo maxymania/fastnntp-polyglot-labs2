@@ -36,6 +36,8 @@ func toError(b bool,s string) error {
 
 var ENoResult = errors.New("NoResult")
 
+var ENoPing = errors.New("NoPing")
+
 type Client struct{
 	Inner ssh.Conn
 }
@@ -52,6 +54,14 @@ func NewClient(c net.Conn,addr,user,pwd string, o ...Option) (*Client,error) {
 	go blackHole_Chan_do(chs)
 	go blackHole_Req_do(reqs)
 	return &Client{conn},nil
+}
+
+func (c *Client) Ping() error {
+	ok,data,err := c.Inner.SendRequest("wire1://Ping",true,[]byte("wire1://Test"))
+	if err!=nil { return err }
+	if !ok { return ENoPing }
+	if string(data)!="wire1://Test" { return ENoPing }
+	return nil
 }
 
 // known from "github.com/maxymania/fastnntp-polyglot"

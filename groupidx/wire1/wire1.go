@@ -92,6 +92,10 @@ func (wh *WireHandler) handleRequest(r *ssh.Request) {
 	var id     []byte
 	
 	switch r.Type {
+	case "wire1://Ping":
+		if !r.WantReply { break }
+		r.Reply(true,r.Payload)
+		return
 	case "wire1://GroupHeadInsert":
 		if !r.WantReply { break }
 		err := msgpack.Unmarshal(r.Payload,&groups)
