@@ -21,26 +21,43 @@ SOFTWARE.
 */
 
 
-package groupidx
+package wire1
 
-type GroupIndex interface{
-	// known from "github.com/maxymania/fastnntp-polyglot"
-	GroupHeadInsert(groups [][]byte, buf []int64) ([]int64, error)
-	GroupHeadRevert(groups [][]byte, nums []int64) error
-	ArticleGroupStat(group []byte, num int64, id_buf []byte) ([]byte, bool)
-	ArticleGroupMove(group []byte, i int64, backward bool, id_buf []byte) (ni int64, id []byte, ok bool)
-	
-	// Newly introduced.
-	AssignArticleToGroup(group []byte, num, exp uint64, id []byte) error
-	AssignArticleToGroups(groups [][]byte, nums []int64, exp uint64, id []byte) error /* Bulk-version*/
-	ListArticleGroupRaw(group []byte, first, last int64, targ func(int64, []byte))
+import "golang.org/x/crypto/ssh"
+
+type Option interface{
+	applyClient(cc *ssh.ClientConfig)
 }
 
-/* Don't use this!!! */
-type P_GIPrototype GroupIndex
+type fastciphers struct{}
 
-/*type gGroupIndexExList interface{
-	// known from "github.com/maxymania/fastnntp-polyglot"
-	ArticleGroupList(group []byte, first, last int64, targ func(int64))
-}*/
+func (fastciphers) applyClient(cc *ssh.ClientConfig) {
+	/* We are prefering fast ciphers. */
+	cc.Ciphers = []string{
+		/* Fast and secure: */
+		"chacha20-poly1305@openssh.com",
+		
+		/* Fast and insecure: */
+		"arcfour","arcfour128","arcfour256",
+	}
+}
+
+func FastCiphersOption() Option { return fastciphers{} }
+
+type fastkex struct{}
+
+func (fastkex) applyClient(cc *ssh.ClientConfig) {
+	/* We are prefering fast KEXes. */
+	cc.KeyExchanges = []string{
+		/* Fastest and most secure one. */
+		"curve25519-sha256@libssh.org",
+		/* Compromitted but fast. */
+		"ecdh-sha2-nistp256",
+		"ecdh-sha2-nistp384",
+		"ecdh-sha2-nistp521",
+	}
+}
+
+func FastKexOption() Option { return fastkex{} }
+
 

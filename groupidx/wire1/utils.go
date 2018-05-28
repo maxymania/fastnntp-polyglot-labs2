@@ -21,26 +21,16 @@ SOFTWARE.
 */
 
 
-package groupidx
+package wire1
 
-type GroupIndex interface{
-	// known from "github.com/maxymania/fastnntp-polyglot"
-	GroupHeadInsert(groups [][]byte, buf []int64) ([]int64, error)
-	GroupHeadRevert(groups [][]byte, nums []int64) error
-	ArticleGroupStat(group []byte, num int64, id_buf []byte) ([]byte, bool)
-	ArticleGroupMove(group []byte, i int64, backward bool, id_buf []byte) (ni int64, id []byte, ok bool)
-	
-	// Newly introduced.
-	AssignArticleToGroup(group []byte, num, exp uint64, id []byte) error
-	AssignArticleToGroups(groups [][]byte, nums []int64, exp uint64, id []byte) error /* Bulk-version*/
-	ListArticleGroupRaw(group []byte, first, last int64, targ func(int64, []byte))
+import "golang.org/x/crypto/ssh"
+
+func blackHole_Req_do(rr <-chan *ssh.Request) {
+	for r := range rr { if r.WantReply { r.Reply(false,nil) } }
 }
 
-/* Don't use this!!! */
-type P_GIPrototype GroupIndex
+func blackHole_Chan_do(cc <-chan ssh.NewChannel) {
+	for c := range cc { c.Reject(ssh.UnknownChannelType,"blackhole") }
+}
 
-/*type gGroupIndexExList interface{
-	// known from "github.com/maxymania/fastnntp-polyglot"
-	ArticleGroupList(group []byte, first, last int64, targ func(int64))
-}*/
-
+//<-chan ssh.NewChannel, <-chan *ssh.Request
