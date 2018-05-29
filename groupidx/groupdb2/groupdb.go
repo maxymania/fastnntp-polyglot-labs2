@@ -37,7 +37,9 @@ var (
 
 type Tx struct{
 	inner *bolt.Bucket
-	name  []byte
+}
+func MakeTx(bkt *bolt.Bucket) *Tx {
+	return &Tx{inner:bkt}
 }
 
 func (t *Tx) createGroup(group []byte) (*bolt.Bucket,error) {
