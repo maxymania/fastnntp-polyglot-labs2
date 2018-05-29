@@ -27,6 +27,7 @@ import "sync"
 import "bytes"
 import "time"
 import "sync/atomic"
+import "container/list"
 
 type stream struct {
 	t sync.Mutex
@@ -35,6 +36,7 @@ type stream struct {
 	parent *stmap
 	key    uint64
 	done   bool
+	elem   *list.Element
 }
 
 func (s *stream) lock() *stream {
@@ -66,13 +68,14 @@ func (s *stream) obtainPacket(i *iRequest,ndl time.Time) {
 	}
 }
 
+
 func (s *stream) Close() error {
 	s.done = true
+	s.lock().unlock()
 	return nil
 }
 
 /* These IO-Methods are used by msgpack.Encoder */
-
 func (s *stream) Write(b []byte) (int, error) {
 	if s.inner==nil { return len(b),nil }
 	defer s.lock().unlock()
@@ -97,11 +100,13 @@ func (s *stream) WriteString(b string) (int, error) {
 type stmap struct {
 	t sync.Mutex
 	m map[uint64]*stream
+	l *list.List
 }
 
 func (s *stmap) lock() *stmap {
 	s.t.Lock()
 	if s.m==nil { s.m = make(map[uint64]*stream) }
+	if s.l==nil { s.l = list.New() }
 	return s
 }
 
@@ -109,14 +114,31 @@ func (s *stmap) unlock() {
 	s.t.Unlock()
 }
 
+func (s *stmap) ieatOld() {
+	e := s.l.Back()
+	now := time.Now()
+	/* Purge dead and/or outdated elements. */
+	for e!=nil {
+		str := e.Value.(*stream)
+		e = e.Prev()
+		if str.inner==nil || str.deadline.Before(now) {
+			delete(s.m,str.key)
+			s.l.Remove(str.elem)
+		}
+	}
+}
 func (s *stmap) obtain(k uint64, locked bool) *stream {
 	defer s.lock().unlock()
 	str := s.m[k]
 	if str==nil { return nil }
 	if str.inner==nil {
 		delete(s.m,k)
+		s.l.Remove(str.elem)
+		str.elem = nil
 		return nil
 	}
+	s.l.MoveToFront(str.elem)
+	s.ieatOld()
 	if locked { str.lock() }
 	return str
 }
@@ -129,18 +151,22 @@ func (s *stmap) put(k uint64,v *stream) bool {
 func (s *stmap) put_nl(k uint64,v *stream) bool {
 	str := s.m[k]
 	if str==nil {
-		s.m[k] = v
-		v.parent = s
-		v.key    = k
+		s.iput(k,v)
 		return true
 	}
 	if str.inner==nil {
-		s.m[k] = v
-		v.parent = s
-		v.key    = k
+		s.iput(k,v)
 		return true
 	}
 	return false
+}
+
+func (s *stmap) iput(k uint64,v *stream) {
+	s.m[k]   = v
+	v.parent = s
+	v.key    = k
+	v.elem   = s.l.PushFront(v)
+	s.ieatOld()
 }
 
 func (s *stmap) allocate(a *uint64,ito time.Time) (uint64,*stream) {
@@ -151,7 +177,6 @@ start:
 	if !s.put_nl(k,str) { goto start }
 	return k,str
 }
-
 
 
 type mstmap [128]stmap
