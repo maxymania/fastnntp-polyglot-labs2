@@ -60,8 +60,12 @@ func (r *response) ReadResponse(br *bufio.Reader) error {
 	return r.inner.DecodeResp(r.dec)
 }
 
+var _ fastrpc.ResponseReader = (*response)(nil)
+
 var reqPool = sync.Pool{ New:func() interface{} { return new(request) } }
 var respPool = sync.Pool{ New:func() interface{} { return new(response) } }
+
+func newResponse() fastrpc.ResponseReader { return respPool.Get().(fastrpc.ResponseReader) }
 
 type client struct {
 	cli fastrpc.Client
