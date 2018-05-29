@@ -42,6 +42,8 @@ func createHandler(ginr groupidx.GroupIndex) func(ctx fastrpc.HandlerCtx) fastrp
 	strmap := new(mstmap)
 	strall := new(uint64)
 	
+	*strall = uint64(time.Now().Unix())
+	
 	LAGR := func(group []byte, first, last int64, enc *msgpack.Encoder, cls io.Closer) {
 		ginr.ListArticleGroupRaw(group,first,last,func(id int64, bt []byte){
 			enc.Encode(true,id,bt)
