@@ -50,7 +50,7 @@ func nclient(netw, addr string) *fastrpc.Client {
 func nserver(ginr groupidx.GroupIndex) *fastrpc.Server {
 	s := new(fastrpc.Server)
 	s.SniffHeader = SniffHeader
-	s.NewHandlerCtx = func() fastrpc.HandlerCtx { return new(handlerctx) }
+	s.NewHandlerCtx = newHandler
 	s.ProtocolVersion = ProtocolVersion
 	s.Handler = createHandler(ginr)
 	s.CompressType = fastrpc.CompressNone

@@ -42,7 +42,7 @@ func MakeTx(bkt *bolt.Bucket) *Tx {
 	return &Tx{inner:bkt}
 }
 
-func (t *Tx) createGroup(group []byte) (*bolt.Bucket,error) {
+func (t Tx) createGroup(group []byte) (*bolt.Bucket,error) {
 	bkt,err := t.inner.CreateBucketIfNotExists(group)
 	if err!=nil { return nil,err }
 	_,err = bkt.CreateBucketIfNotExists(iTable)
@@ -58,7 +58,7 @@ func (t *Tx) createGroup(group []byte) (*bolt.Bucket,error) {
 	return bkt,err
 }
 
-func (t *Tx) reserve(group []byte) (uint64,error) {
+func (t Tx) reserve(group []byte) (uint64,error) {
 	bkt,err := t.createGroup(group)
 	if err!=nil { return 0,err }
 	f := bkt.Bucket(iFree)
@@ -86,7 +86,7 @@ func (t *Tx) reserve(group []byte) (uint64,error) {
 	return n,nil
 }
 
-func (t *Tx) AssignArticleToGroup(group []byte, num, exp uint64, id []byte) error {
+func (t Tx) AssignArticleToGroup(group []byte, num, exp uint64, id []byte) error {
 	bkt,err := t.createGroup(group)
 	
 	if err!=nil { return err }
@@ -103,14 +103,14 @@ func (t *Tx) AssignArticleToGroup(group []byte, num, exp uint64, id []byte) erro
 	return bkt.Put(iCount,nubrin.Encode(nubrin.Decode(  bkt.Get(iCount)  )+1))
 }
 
-func (t *Tx) AssignArticleToGroups(groups [][]byte, nums []int64, exp uint64, id []byte) error {
+func (t Tx) AssignArticleToGroups(groups [][]byte, nums []int64, exp uint64, id []byte) error {
 	for i,group := range groups {
 		if err := t.AssignArticleToGroup(group,uint64(nums[i]),exp,id); err!=nil { return err }
 	}
 	return nil
 }
 
-func (t *Tx) ArticleGroupStat(group []byte, num int64, id_buf []byte) ([]byte, bool) {
+func (t Tx) ArticleGroupStat(group []byte, num int64, id_buf []byte) ([]byte, bool) {
 	bkt := t.inner.Bucket(group)
 	if bkt==nil { return nil,false }
 	
@@ -127,7 +127,7 @@ func (t *Tx) ArticleGroupStat(group []byte, num int64, id_buf []byte) ([]byte, b
 	return append(id_buf[:0],val...),true
 }
 
-func (t *Tx) GroupHeadInsert(groups [][]byte, buf []int64) ([]int64, error) {
+func (t Tx) GroupHeadInsert(groups [][]byte, buf []int64) ([]int64, error) {
 	
 	if cap(buf)<len(groups) { buf = make([]int64,len(groups)) } else { buf = buf[:len(groups)] }
 	
@@ -142,7 +142,7 @@ func (t *Tx) GroupHeadInsert(groups [][]byte, buf []int64) ([]int64, error) {
 	return buf,nil
 }
 
-func (t *Tx) GroupHeadRevert(groups [][]byte, nums []int64) error {
+func (t Tx) GroupHeadRevert(groups [][]byte, nums []int64) error {
 	for i,group := range groups {
 		bkt,err := t.createGroup(group)
 		
@@ -157,7 +157,7 @@ func (t *Tx) GroupHeadRevert(groups [][]byte, nums []int64) error {
 	return nil
 }
 
-func (t *Tx) ArticleGroupMove(group []byte, i int64, backward bool, id_buf []byte) (ni int64, id []byte, ok bool) {
+func (t Tx) ArticleGroupMove(group []byte, i int64, backward bool, id_buf []byte) (ni int64, id []byte, ok bool) {
 	bkt := t.inner.Bucket(group)
 	if bkt==nil { return }
 	c := bkt.Bucket(iTable).Cursor()
@@ -185,7 +185,7 @@ func (t *Tx) ArticleGroupMove(group []byte, i int64, backward bool, id_buf []byt
 	return
 }
 
-func (t *Tx) ListArticleGroupRaw(group []byte, first, last int64, targ func(int64, []byte)) {
+func (t Tx) ListArticleGroupRaw(group []byte, first, last int64, targ func(int64, []byte)) {
 	bkt := t.inner.Bucket(group)
 	if bkt==nil { return }
 	c := bkt.Bucket(iTable).Cursor()

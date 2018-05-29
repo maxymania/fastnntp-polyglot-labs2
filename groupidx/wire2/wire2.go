@@ -164,7 +164,7 @@ func createHandler(ginr groupidx.GroupIndex) func(ctx fastrpc.HandlerCtx) fastrp
 		case "wire1://AssignArticleToGroup":
 			if !r.WantReply { break }
 			err := msgpack.Unmarshal(r.Payload,&group,&unum,&exp,&id)
-			if err!=nil {
+			if err==nil {
 				err = ginr.AssignArticleToGroup(group,unum,exp,id)
 			}
 			data,err2 := msgpack.Marshal(err==nil,fmt.Sprint(err))
@@ -174,7 +174,7 @@ func createHandler(ginr groupidx.GroupIndex) func(ctx fastrpc.HandlerCtx) fastrp
 		case "wire1://AssignArticleToGroups":
 			if !r.WantReply { break }
 			err := msgpack.Unmarshal(r.Payload,&groups,&nums,&exp,&id)
-			if err!=nil {
+			if err==nil {
 				err = ginr.AssignArticleToGroups(groups,nums,exp,id)
 			}
 			data,err2 := msgpack.Marshal(err==nil,fmt.Sprint(err))
@@ -188,6 +188,8 @@ func createHandler(ginr groupidx.GroupIndex) func(ctx fastrpc.HandlerCtx) fastrp
 	
 	return func(ctx fastrpc.HandlerCtx) fastrpc.HandlerCtx {
 		handleRequest(&ctx.(*handlerctx).inner)
+		//r := ctx.(*handlerctx).inner
+		//fmt.Printf("%s %v %q -> %v %q\n",r.Type,r.WantReply,r.Payload,r.ok,r.reply)
 		return ctx
 	}
 }
