@@ -197,6 +197,21 @@ func (t Tx) ListArticleGroupRaw(group []byte, first, last int64, targ func(int64
 		if nubrin.Decode(ee) >= current { targ(i,id) }
 	}
 }
+func (t Tx) GroupRealtimeQuery(group []byte) (number int64, low int64, high int64, ok bool) {
+	bkt := t.inner.Bucket(group)
+	if bkt==nil { return }
+	
+	ok = true
+	number = int64(nubrin.Decode(bkt.Get(iCount)))
+	
+	c := bkt.Bucket(iTable).Cursor()
+	
+	k,_ := c.First()
+	low = int64(nubrin.Decode(k))
+	k,_ = c.Last()
+	high = int64(nubrin.Decode(k))
+	return
+}
 
 var _ groupidx.GroupIndex = (*Tx)(nil)
 

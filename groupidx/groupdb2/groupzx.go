@@ -103,6 +103,13 @@ func (db *DB) ListArticleGroupRaw(group []byte, first, last int64, targ func(int
 		return
 	})
 }
+func (db *DB) GroupRealtimeQuery(group []byte) (number int64, low int64, high int64, ok bool) {
+	db.view(func(t *bolt.Bucket) (err error) {
+		number,low,high,ok = Tx{t}.GroupRealtimeQuery(group)
+		return
+	})
+	return
+}
 
 
 var _ groupidx.GroupIndex = (*DB)(nil)

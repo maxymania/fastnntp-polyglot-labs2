@@ -29,6 +29,7 @@ type GroupIndex interface{
 	GroupHeadRevert(groups [][]byte, nums []int64) error
 	ArticleGroupStat(group []byte, num int64, id_buf []byte) ([]byte, bool)
 	ArticleGroupMove(group []byte, i int64, backward bool, id_buf []byte) (ni int64, id []byte, ok bool)
+	GroupRealtimeQuery(group []byte) (number int64, low int64, high int64, ok bool)
 	
 	// Newly introduced.
 	AssignArticleToGroup(group []byte, num, exp uint64, id []byte) error

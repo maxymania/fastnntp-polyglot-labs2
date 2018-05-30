@@ -155,6 +155,13 @@ func (wh *WireHandler) handleRequest(r *ssh.Request) {
 		if err2!=nil { break }
 		if r.WantReply { r.Reply(true,data) }
 		return
+	case "wire1://GroupRealtimeQuery":
+		if !r.WantReply { break }
+		number,low,high,ok := wh.Inner.GroupRealtimeQuery(r.Payload)
+		data,err := msgpack.Marshal(number,low,high,ok)
+		if err!=nil { break }
+		if r.WantReply { r.Reply(true,data) }
+		return
 	}
 	
 	if r.WantReply { r.Reply(false,nil) }

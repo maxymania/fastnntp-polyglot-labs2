@@ -178,6 +178,15 @@ func (c *Client) ArticleGroupList(group []byte, first, last int64, targ func(int
 	}
 }
 
+func (c *Client) GroupRealtimeQuery(group []byte) (number int64, low int64, high int64, ok bool) {
+	rok,data,err := c.Inner.SendRequest("wire1://GroupRealtimeQuery",true,group)
+	if err!=nil { return }
+	if !rok { return }
+	err = msgpack.Unmarshal(data,&number,&low,&high,&ok)
+	if err!=nil { ok = false }
+	return
+}
+
 var _ groupidx.GroupIndex = (*Client)(nil)
 var _ idxExt1 = (*Client)(nil)
 
