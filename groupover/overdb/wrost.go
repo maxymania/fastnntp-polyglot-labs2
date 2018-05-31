@@ -24,7 +24,7 @@ SOFTWARE.
 package overdb
 
 import "github.com/maxymania/fastnntp-polyglot-labs2/groupover"
-import "github.com/coreos/bbolt"
+import bolt "github.com/coreos/bbolt"
 import "errors"
 
 var einval = errors.New("einval")

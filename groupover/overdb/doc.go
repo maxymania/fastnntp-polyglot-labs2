@@ -21,37 +21,19 @@ SOFTWARE.
 */
 
 
+/*
+OverDB is an implementation of the GroupOverview database, based on boltDB (bbolt)
+and the SSTable format from LevelDB.
+
+OverDB implements the GroupOverview database, which is basically a sorted key-value store,
+storing (group=>status+description) pairs.
+
+BoltDB is used for metadata and it is used to implement a Writable key-value store.
+
+LevelDB's SSTable is used as a Read-Only key-value store and an Export- and Import-format
+for the key-value pairs.
+*/
 package overdb
 
-import "github.com/maxymania/fastnntp-polyglot-labs2/groupover"
-import "github.com/syndtr/goleveldb/leveldb/table"
-import "bytes"
 
-type rostore struct {
-	tr *table.Reader
-}
-
-func (r *rostore) GroupOverviewList(targ func(group []byte, statusAndDescr []byte)) bool {
-	c := r.tr.NewIterator(nil,nil)
-	defer c.Release()
-	
-	if !c.First() { return true }
-	
-	targ(c.Key(),c.Value())
-	
-	for c.Next() { targ(c.Key(),c.Value()) }
-	
-	return true
-}
-
-func (r *rostore) GroupOverviewGet(group []byte, buffer []byte) (statusAndDescr []byte) {
-	//statusAndDescr,_ = r.tr.Get(group,nil)
-	key,value,err := r.tr.Find(group,true,nil)
-	if err==nil && bytes.Equal(group,key) {
-		statusAndDescr = value
-	}
-	return
-}
-
-var _ groupover.GroupOverview = (*rostore)(nil)
 

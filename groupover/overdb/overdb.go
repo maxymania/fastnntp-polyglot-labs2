@@ -24,7 +24,7 @@ SOFTWARE.
 package overdb
 
 import "github.com/maxymania/fastnntp-polyglot-labs2/groupover"
-import "github.com/coreos/bbolt"
+import bolt "github.com/coreos/bbolt"
 import "sync/atomic"
 import "sync"
 import "os"
@@ -308,7 +308,9 @@ func (db *DB) Import(r io.Reader) error {
 		f.Close()
 		if err!=nil { return err }
 	}
-	return db.db.Update(func(t *bolt.Tx) error {
+	
+	var rsn *snapshot
+	err := db.db.Update(func(t *bolt.Tx) error {
 		bkt,err := t.CreateBucketIfNotExists(gPrefs)
 		if err!=nil { return err }
 		u := decode(bkt.Get(pSSTab))
@@ -319,13 +321,27 @@ func (db *DB) Import(r io.Reader) error {
 			if err!=nil { return err }
 		}
 		
-		err = os.Rename( ipath , db.PPF+fmt.Sprintf(".%d.sst",s) )
+		path := db.PPF+fmt.Sprintf(".%d.sst",s)
+		err = os.Rename(ipath,path)
 		
 		if err!=nil { os.Remove(ipath) ; return err }
+		
+		rsn,err = db.openSST(s)
+		
+		if err!=nil { os.Remove(path) ; return err }
 		
 		bkt.Put(pState,[]byte("imported"))
 		return bkt.Put(pSSTab,encode(s))
 	})
+	if err!=nil { return err }
+	
+	sn := db.sn
+	db.mu.Lock()
+	db.sn = rsn
+	defer db.mu.Unlock()
+	sn.free()
+	
+	return nil
 }
 
 
