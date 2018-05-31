@@ -26,7 +26,6 @@ package caps
 import "github.com/byte-mug/fastnntp/posting"
 import "github.com/vmihailenco/msgpack"
 import "github.com/maxymania/fastnntp-polyglot"
-import "github.com/maxymania/fastnntp-polyglot/buffer"
 import "github.com/maxymania/fastnntp-polyglot/policies"
 import "github.com/maxymania/fastnntp-polyglot-labs2/groupidx"
 import "github.com/maxymania/fastnntp-polyglot-labs2/articlestore"
@@ -35,19 +34,10 @@ import "github.com/maxymania/fastnntp-polyglot-labs2/articlestore"
 func flattenP(o *newspolyglot.ArticleOverview) []interface{} {
 	return []interface{}{ &o.Subject,&o.From,&o.Date,&o.MsgId,&o.Refs,&o.Bytes,&o.Lines }
 }
-func flattenV(o *newspolyglot.ArticleOverview) []interface{} {
-	return []interface{}{  o.Subject, o.From, o.Date, o.MsgId, o.Refs, o.Bytes, o.Lines }
-}
 func flatten2V(o *posting.HeadInfo,b,l int64) []interface{} {
 	return []interface{}{ o.Subject, o.From, o.Date, o.MessageId, o.References, b, l }
 }
 
-func instantiate(bp **[]byte, t *[]byte, v []byte) {
-	buf := buffer.Get(len(v))
-	*bp = buf
-	*t  = (*buf)[:len(v)]
-	copy(*t,v)
-}
 
 type ArticleGL interface {
 	ArticleGroupList(group []byte, first, last int64, targ func(int64))
