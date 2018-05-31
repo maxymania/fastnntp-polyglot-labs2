@@ -31,10 +31,10 @@ func (e EFail) Error() string { return "Failed" }
 // If you don't have any other error, use this.
 var VEFail error = EFail{}
 
-type StorageR interface {
+type StorageW interface {
 	StoreWriteMessage(id, msg []byte, expire uint64) error
 }
-type StorageW interface {
+type StorageR interface {
 	StoreReadMessage(id []byte, over,head,body bool) (bufferex.Binary,error)
 }
 type Storage interface {
