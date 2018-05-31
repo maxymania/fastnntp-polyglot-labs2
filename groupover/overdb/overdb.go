@@ -28,6 +28,7 @@ import "github.com/coreos/bbolt"
 import "sync/atomic"
 import "sync"
 import "os"
+import "io"
 import "fmt"
 
 
@@ -263,7 +264,10 @@ func (db *DB) Export() (string,error) {
 	})
 	w.Close()
 	f.Close()
-	if err!=nil { return "",err }
+	if err!=nil {
+		os.Remove(path)
+		return "",err
+	}
 	
 	rsn,err := db.openSST(u)
 	if err!=nil {
@@ -290,6 +294,38 @@ func (db *DB) Export() (string,error) {
 	sn.free()
 	
 	return path,err
+}
+
+func (db *DB) Import(r io.Reader) error {
+	db.updater.Lock()
+	defer db.updater.Unlock()
+	
+	ipath := db.PPF+".import.sst"
+	{
+		f,err := os.Create(ipath)
+		if err!=nil { return err }
+		_,err = io.Copy(f,r)
+		f.Close()
+		if err!=nil { return err }
+	}
+	return db.db.Update(func(t *bolt.Tx) error {
+		bkt,err := t.CreateBucketIfNotExists(gPrefs)
+		if err!=nil { return err }
+		u := decode(bkt.Get(pSSTab))
+		s,err := bkt.NextSequence()
+		if err!=nil { return err }
+		if u==s {
+			s,err = bkt.NextSequence()
+			if err!=nil { return err }
+		}
+		
+		err = os.Rename( ipath , db.PPF+fmt.Sprintf(".%d.sst",s) )
+		
+		if err!=nil { os.Remove(ipath) ; return err }
+		
+		bkt.Put(pState,[]byte("imported"))
+		return bkt.Put(pSSTab,encode(s))
+	})
 }
 
 
