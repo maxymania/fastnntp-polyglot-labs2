@@ -23,7 +23,7 @@ SOFTWARE.
 
 package timefbak
 
-import "github.com/maxymania/storage-engines/timefile"
+import timefile "github.com/maxymania/storage-engines/timefile2"
 import "io"
 import "github.com/maxymania/fastnntp-polyglot-labs2/articlestore"
 import "github.com/maxymania/fastnntp-polyglot-labs/bufferex"
