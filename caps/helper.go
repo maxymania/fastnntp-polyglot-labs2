@@ -72,7 +72,7 @@ func zdecode(data []byte) (*[]byte,[]byte,error) {
 		if e!=nil { buffer.Put(tb) ; return nil,nil,e }
 		if wegot==len(*tb) {
 			ntb := buffer.Get(len(*tb)*2)
-			if ntb!=nil { buffer.Put(tb) ; return nil,nil,EBufferTooLarge }
+			if ntb==nil { buffer.Put(tb) ; return nil,nil,EBufferTooLarge }
 			copy(*ntb,*tb)
 			buffer.Put(tb)
 			tb = ntb

@@ -30,7 +30,6 @@ import "github.com/maxymania/fastnntp-polyglot/policies"
 import "github.com/maxymania/fastnntp-polyglot-labs2/groupidx"
 import "github.com/maxymania/fastnntp-polyglot-labs2/articlestore"
 
-
 func flattenP(o *newspolyglot.ArticleOverview) []interface{} {
 	return []interface{}{ &o.Subject,&o.From,&o.Date,&o.MsgId,&o.Refs,&o.Bytes,&o.Lines }
 }
