@@ -74,7 +74,7 @@ func (c ClientR) StoreReadMessage(id []byte, over, head, body bool) (bufferex.Bi
 	req.inner.Type = append(req.inner.Type[:0],"R"...)
 	req.inner.MessageId = append(req.inner.MessageId[:0],id...)
 	req.inner.Payload = req.inner.Payload[:0]
-	req.inner.Expire = cond(1,over)|cond(2,head)|cond(3,body)
+	req.inner.Expire = cond(1,over)|cond(2,head)|cond(4,body)
 	
 	err := c.Cli.DoDeadline(req,resp,time.Now().Add(time.Second*5))
 	if err!=nil { return bufferex.Binary{},err }

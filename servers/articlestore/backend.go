@@ -24,6 +24,7 @@ package astoresvc
 
 import "github.com/maxymania/fastnntp-polyglot-labs2/articlestore"
 import "github.com/maxymania/fastnntp-polyglot-labs2/articlestore/timefbak"
+import "github.com/maxymania/fastnntp-polyglot-labs2/articlestore/minifier"
 //import "github.com/maxymania/storage-engines/timefile"
 import timefile "github.com/maxymania/storage-engines/timefile2"
 import "os"
@@ -41,7 +42,7 @@ func openTimefile(c *storage) (articlestore.StorageR,articlestore.StorageW,error
 	store,err := timefile.OpenStore(strings.Replace(c.Location,"/",osPS,-1),opt)
 	if err!=nil { return nil,nil,err }
 	bak := timefbak.MakeBackend(store)
-	return bak,bak,nil
+	return &minifier.RWrapper{bak,true},bak,nil
 }
 
 func init() {
