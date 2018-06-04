@@ -39,17 +39,25 @@ func (g *GroupDB) GroupHeadFilterWithAuth(rank postauth.AuthRank, ngs [][]byte) 
 		sad := g.GroupOverviewGet(group,buf)
 		if len(sad)==0 { continue }
 		buf = sad
-		if rank.TestStatus(sad[0]) { continue }
+		if !rank.TestStatus(sad[0]) { continue }
 		ngs[i] = group
 		i++
 	}
 	
 	return ngs[:i],nil
 }
+func (g *GroupDB) GroupRealtimeQuery(group []byte) (number int64, low int64, high int64, ok bool) {
+	number,low,high,ok = g.GroupIndex.GroupRealtimeQuery(group)
+	if !ok {
+		if len(g.GroupOverviewGet(group,nil))==0 { return }
+		low,high,ok = 0,0,true
+	}
+	return
+}
 func (g *GroupDB) GroupRealtimeList(targ func(group []byte, high, low int64, status byte)) bool {
 	return g.GroupOverviewList(func(group []byte, statusAndDescr []byte){
-		_,low,high,ok := g.GroupRealtimeQuery(group)
-		if !ok { return }
+		_,low,high,ok := g.GroupIndex.GroupRealtimeQuery(group)
+		if !ok { low,high = 0,0 }
 		targ(group,high,low,statusAndDescr[0])
 	})
 }
