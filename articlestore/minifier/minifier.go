@@ -46,6 +46,8 @@ func UnpackMessageSafe(msg []byte) (over,head,body []byte) {
 	return
 }
 
+func overhead(a,b,c []byte) int { return len(a)+len(b)+len(c)+4 }
+
 type RWrapper struct{
 	articlestore.StorageR
 	Safe bool
@@ -57,11 +59,17 @@ func (r *RWrapper) repack(b *bufferex.Binary, over, head, body bool) {
 	} else {
 		bover,bhead,bbody = articlestore.UnpackMessage(b.Bytes())
 	}
+	before := overhead(bover,bhead,bbody)
 	exch := false
 	exch = exch || nullify( &bover , over )
 	exch = exch || nullify( &bhead , head )
 	exch = exch || nullify( &bbody , body )
 	if !exch { return }
+	after := overhead(bover,bhead,bbody)
+	
+	/* Minimum size reduction. Otherwise no reduction. */
+	if (before/2) < after { return }
+	
 	n,e := articlestore.PackMessage(bover,bhead,bbody)
 	if e!=nil { return }
 	b.Free()
