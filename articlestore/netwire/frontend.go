@@ -34,30 +34,37 @@ func network(netw string) func(addr string) (net.Conn, error) {
 	return func(addr string) (net.Conn, error) { return net.Dial(netw,addr) }
 }
 
-func nclient(netw, addr string) *fastrpc.Client {
+func getDial(netw string) func(addr string) (net.Conn, error) {
+	if netw=="tcp4" { return nil }
+	return network(netw)
+}
+
+func nclient(addr string,dial func(addr string) (net.Conn, error)) *fastrpc.Client {
 	c := new(fastrpc.Client)
-	c.SniffHeader = SniffHeader
+	c.SniffHeader     = SniffHeader
 	c.ProtocolVersion = ProtocolVersion
-	c.NewResponse = newResponse
-	c.Addr = addr
-	c.CompressType = fastrpc.CompressNone
-	if netw!="tcp4" {
-		c.Dial = network(netw)
-	}
+	c.CompressType    = fastrpc.CompressNone
+	/*----------------------------------------------------*/
+	c.NewResponse     = newResponse
+	c.Addr            = addr
+	c.Dial            = dial
 	return c
 }
 
 func nserver(SR articlestore.StorageR,SW articlestore.StorageW) *fastrpc.Server {
 	s := new(fastrpc.Server)
-	s.SniffHeader = SniffHeader
-	s.NewHandlerCtx = newHandler
+	s.SniffHeader     = SniffHeader
 	s.ProtocolVersion = ProtocolVersion
-	s.Handler = createHandler(SR,SW)
-	s.CompressType = fastrpc.CompressNone
+	s.CompressType    = fastrpc.CompressNone
+	/*----------------------------------------------------*/
+	s.NewHandlerCtx   = newHandler
+	s.Handler         = createHandler(SR,SW)
 	return s
 }
 
-func NewClient(netw, addr string) Client { return Client{nclient(netw,addr)} }
+func NewClient(netw, addr string) Client { return Client{nclient(addr,getDial(netw))} }
+
+func NewClientWithDial(addr string,dial func(addr string) (net.Conn, error)) Client { return Client{nclient(addr,dial)} }
 
 func NewServer(SR articlestore.StorageR,SW articlestore.StorageW) *fastrpc.Server { return nserver(SR,SW) }
 
