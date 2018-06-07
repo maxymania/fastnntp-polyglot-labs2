@@ -37,7 +37,7 @@ type store struct {
 	expire uint64
 }
 func (s store) Mutate(hash uint64, obj interface{}) bool {
-	return obj.(articlestore.StorageW).StoreWriteMessage(s.id,s.msg,s.expire)!=nil
+	return obj.(articlestore.StorageW).StoreWriteMessage(s.id,s.msg,s.expire)==nil
 }
 type loader struct {
 	id []byte
@@ -48,7 +48,7 @@ type loader struct {
 func (l *loader) Mutate(hash uint64, obj interface{}) bool {
 	l.b.Free()
 	l.b,l.e = obj.(articlestore.StorageR).StoreReadMessage(l.id,l.over,l.head,l.body)
-	return (l.e)!=nil
+	return (l.e)==nil
 }
 
 type unimpl struct{}

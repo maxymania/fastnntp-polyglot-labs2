@@ -35,6 +35,7 @@ storage timefile {
 }
 network {
 	ip-addr: 192.168.1.42
+	node: test123
 	
 	gossip-type: local
 	gossip-port: 7001
@@ -56,6 +57,7 @@ type Storage struct {
 }
 type Network struct {
 	Addr string `inn:"$ip-addr"`
+	Node string `inn:"$node"`
 	
 	MLType string `inn:"$gossip-type"`
 	Gossip int  `inn:"$gossip-port"`

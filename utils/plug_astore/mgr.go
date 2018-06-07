@@ -33,6 +33,12 @@ import "github.com/valyala/fastrpc"
 import "io/ioutil"
 import "net"
 import "fmt"
+import "log"
+import "time"
+
+const (
+	min_interval = time.Second*15
+)
 
 type Service struct {
 	ml *memberlist.Memberlist
@@ -58,7 +64,10 @@ func (s *Service) Init(n *Network,authorative string) error {
 	default     : cfg = memberlist.DefaultLocalConfig()
 	}
 	
+	if cfg.PushPullInterval < min_interval { cfg.PushPullInterval = min_interval }
+	
 	g := new(graph.Cluster)
+	g.LocalMeta.Port = n.N2n
 	g.Init()
 	s.srv  = netwire.NewServer(g,g)
 	s.gsrv = gnetwire.NewServer(g)
@@ -67,13 +76,17 @@ func (s *Service) Init(n *Network,authorative string) error {
 	mlst.Configure(cfg,g,g)
 	if authorative!="" {
 		data,err := ioutil.ReadFile(NormToNative(authorative))
+		log.Printf("Authorative config %q %v",authorative,err)
 		if err==nil {
 			gcf := new(graph.CfgConfig)
 			if goconfig.Parse(data,goconfig.CreateReflectHandler(gcf))==nil {
-				g.Config = gcf
+				g.SetConfig(gcf)
 				g.Authorative = true
 			}
 		}
+	}
+	if n.Node!="" {
+		cfg.Name = n.Node
 	}
 	
 	gl,err := net.Listen("tcp",net.JoinHostPort(n.Addr,fmt.Sprint(n.N2n)))

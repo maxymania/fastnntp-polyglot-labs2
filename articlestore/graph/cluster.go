@@ -38,14 +38,12 @@ const (
 	level_direct
 )
 
-func ___x(articlestore.Storage) {}
-
 type ClusterMetadata struct {
 	Port int `msgpack:"port"`
 	Stores [][2]string `msgpack:"shard"`
 }
 func (c *ClusterMetadata) Decode(n *cluster.Node) bool {
-	return msgpack.Unmarshal(n.Meta,c)!=nil
+	return msgpack.Unmarshal(n.Meta,c)==nil
 }
 
 type ClusterNodeRecord struct {
@@ -93,6 +91,7 @@ func (c *Cluster) Lookup(K1,K2 []byte) articlestore.Storage {
 	return s
 }
 func (c *Cluster) Init() {
+	c.Records = make(map[string]*ClusterNodeRecord)
 	c.Master = make(StorageMM)
 }
 func (c *Cluster) getLocalSet() map[[2]string]bool {
@@ -192,12 +191,14 @@ var _ gnetwire.MultiStorage = (*Cluster)(nil)
 func (c *Cluster) StoreReadMessage(id []byte, over, head, body bool) (bufferex.Binary, error) {
 	r := c.RingSt
 	if r==nil { return bufferex.Binary{},articlestore.EFail{} }
-	return r.StoreReadMessage(id,over,head,body)
+	b,err := r.StoreReadMessage(id,over,head,body)
+	return b,err
 }
 func (c *Cluster) StoreWriteMessage(id, msg []byte, expire uint64) error {
 	r := c.RingSt
 	if r==nil { return articlestore.EFail{} }
-	return r.StoreWriteMessage(id,msg,expire)
+	err := r.StoreWriteMessage(id,msg,expire)
+	return err
 }
 
 
