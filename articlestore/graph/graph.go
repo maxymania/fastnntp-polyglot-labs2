@@ -68,12 +68,10 @@ func (s *Storage) Set(obj articlestore.Storage,cls uint) {
 		s.Class   = cls
 	}
 }
-
-/*
-type Mutable interface{
-	MutateStore(key []byte, m hashring.Mutator) bool
+func (s *Storage) Unset() {
+	s.Storage = Unimpl
 }
-*/
+
 
 type Ring struct {
 	R hashring.IHashRing
@@ -118,6 +116,33 @@ func (r *Ring) Configure(cfg *CfgRing, st map[string]*Storage) {
 
 type StorageMM map[string]map[string]*Storage
 
+func (l1 StorageMM) Walk(k1,k2 string) (p *Storage) {
+	l2,ok := l1[k1]
+	if !ok {
+		p = new(Storage)
+		l1[k1] = map[string]*Storage{k2:p}
+		return
+	}
+	p,ok = l2[k2]
+	if !ok {
+		p = new(Storage)
+		l2[k2] = p
+	}
+	return
+}
+func (l1 StorageMM) RWalk(k1,k2 string) (p *Storage) {
+	var l2 map[string]*Storage
+	if l1!=nil {
+		l2 = l1[k1]
+	}
+	if l2!=nil {
+		p  = l2[k2]
+	}
+	return
+}
+
+
+
 type RingSet struct {
 	Rings []Ring
 	Trees *avl.Tree
@@ -159,3 +184,5 @@ func (r *RingSet) StoreWriteMessage(id, msg []byte, expire uint64) error {
 	return articlestore.EFail{}
 }
 func (r *RingSet) String() string { return fmt.Sprintf("{%v\n%v\n}",r.Rings,r.Trees) }
+
+

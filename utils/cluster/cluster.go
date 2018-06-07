@@ -33,6 +33,8 @@ type Node struct {
 }
 
 type Handler interface {
+	Metadata(limit int) []byte
+	
 	Create(n *Node)
 	Update(n *Node)
 	Delete(n *Node)
@@ -40,3 +42,7 @@ type Handler interface {
 	ValidateAll(n []Node) bool
 }
 
+type StateHandler interface {
+	LocalState(join bool) []byte
+	MergeRemoteState(buf []byte, join bool)
+}

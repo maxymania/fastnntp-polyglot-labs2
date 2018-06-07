@@ -21,21 +21,17 @@ SOFTWARE.
 */
 
 
-package graph
+package gnetwire
+
+import "io"
 
 
-type CfgRing struct {
-	Ring  string   `inn:"$ring" msgpack:"n"`
-	
-	Type  string   `inn:"$type" msgpack:"t"`
-	Seed  uint64   `inn:"$seed" msgpack:"s"`
-	Num   int      `inn:"$hops" msgpack:"h"`
-	
-	Prio  float64  `inn:"$read-priority" msgpack:"p"`
-	
-	Shard []string `inn:"@shard"  msgpack:"shards"`
+type mpwi interface {
+	io.Writer
+	WriteByte(byte) error
+	WriteString(string) (int, error)
 }
-type CfgConfig struct {
-	Rings []CfgRing `inn:"@ring" msgpack:"rings"`
-}
+
+type mpwp struct{ mpwi }
+
 
