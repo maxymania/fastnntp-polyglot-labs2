@@ -40,6 +40,7 @@ const (
 
 type ClusterMetadata struct {
 	Port int `msgpack:"port"`
+	UserPort int `msgpack:"userport"`
 	Stores [][2]string `msgpack:"shard"`
 }
 func (c *ClusterMetadata) Decode(n *cluster.Node) bool {

@@ -68,6 +68,7 @@ func (s *Service) Init(n *Network,authorative string) error {
 	
 	g := new(graph.Cluster)
 	g.LocalMeta.Port = n.N2n
+	g.LocalMeta.UserPort = n.Srv
 	g.Init()
 	s.srv  = netwire.NewServer(g,g)
 	s.gsrv = gnetwire.NewServer(g)
