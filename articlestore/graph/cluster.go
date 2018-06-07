@@ -24,6 +24,7 @@ SOFTWARE.
 package graph
 
 import "github.com/maxymania/fastnntp-polyglot-labs2/articlestore"
+import "github.com/maxymania/fastnntp-polyglot-labs/bufferex"
 import "github.com/maxymania/fastnntp-polyglot-labs2/utils/cluster"
 import "github.com/valyala/fastrpc"
 import "sync"
@@ -187,4 +188,16 @@ func (c *Cluster) SetConfig(cfg *CfgConfig) {
 var _ cluster.Handler = (*Cluster)(nil)
 var _ cluster.StateHandler = (*Cluster)(nil)
 var _ gnetwire.MultiStorage = (*Cluster)(nil)
+
+func (c *Cluster) StoreReadMessage(id []byte, over, head, body bool) (bufferex.Binary, error) {
+	r := c.RingSt
+	if r==nil { return bufferex.Binary{},articlestore.EFail{} }
+	return r.StoreReadMessage(id,over,head,body)
+}
+func (c *Cluster) StoreWriteMessage(id, msg []byte, expire uint64) error {
+	r := c.RingSt
+	if r==nil { return articlestore.EFail{} }
+	return r.StoreWriteMessage(id,msg,expire)
+}
+
 
