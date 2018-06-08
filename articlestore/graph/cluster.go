@@ -31,6 +31,7 @@ import "sync"
 import "github.com/vmihailenco/msgpack"
 import "github.com/maxymania/fastnntp-polyglot-labs2/articlestore/gnetwire"
 import "net"
+//import "log"
 
 const (
 	level_none uint = iota
@@ -44,7 +45,13 @@ type ClusterMetadata struct {
 	Stores [][2]string `msgpack:"shard"`
 }
 func (c *ClusterMetadata) Decode(n *cluster.Node) bool {
-	return msgpack.Unmarshal(n.Meta,c)==nil
+	var s string
+	b := msgpack.Unmarshal(n.Meta,&s,c)==nil
+	return b && s=="GRAPH"
+}
+func (c *ClusterMetadata) Encode() []byte {
+	data,_ := msgpack.Marshal("GRAPH",c)
+	return data
 }
 
 type ClusterNodeRecord struct {
@@ -79,7 +86,6 @@ type Cluster struct {
 	RingSt *RingSet
 	
 	Config *CfgConfig
-	Authorative bool
 	
 	LocalMeta ClusterMetadata
 	localSet map[[2]string]bool
@@ -89,6 +95,7 @@ func (c *Cluster) Lookup(K1,K2 []byte) articlestore.Storage {
 	m := c.Master[string(K1)]
 	if m==nil { return nil }
 	s := m[string(K2)]
+	if s==nil { return nil }
 	return s
 }
 func (c *Cluster) Init() {
@@ -104,6 +111,7 @@ func (c *Cluster) insert(i [2]string) {
 	if ls[i] { return }
 	ls[i] = true
 	c.LocalMeta.Stores = append(c.LocalMeta.Stores,i)
+	
 }
 func (c *Cluster) AddBackend(k1,k2 string,s articlestore.Storage) {
 	c.lock.Lock(); defer c.lock.Unlock()
@@ -112,7 +120,7 @@ func (c *Cluster) AddBackend(k1,k2 string,s articlestore.Storage) {
 	if r := c.RingMM.RWalk(k1,k2); r!=nil { r.Set(s,level_network) }
 }
 func (c *Cluster) Metadata(limit int) []byte {
-	data,_ := msgpack.Marshal(&c.LocalMeta)
+	data := c.LocalMeta.Encode()
 	if len(data)>limit { data = nil }
 	return data
 }
@@ -128,6 +136,7 @@ func (c *Cluster) Create(n *cluster.Node) {
 	cm := new(ClusterNodeRecord)
 	if !cm.Insert(n) { return }
 	c.Records[n.Name] = cm
+	
 	c.integrate(cm)
 }
 func (c *Cluster) Update(n *cluster.Node) {
@@ -141,6 +150,7 @@ func (c *Cluster) Update(n *cluster.Node) {
 		return
 	}
 	if cm.Update(n) {
+		
 		c.integrate(cm)
 	}
 }
@@ -155,19 +165,9 @@ func (c *Cluster) ValidateAll(nn []cluster.Node) bool {
 	}
 	return true
 }
-func (c *Cluster) LocalState(join bool) []byte {
-	if c.Config==nil { return nil }
-	data,_ := msgpack.Marshal(c.Config)
-	return data
-}
-func (c *Cluster) MergeRemoteState(buf []byte, join bool) {
-	if c.Authorative { return }
-	if len(buf)==0 { return }
-	cfg := new(CfgConfig)
-	if msgpack.Unmarshal(buf,cfg)!=nil { return }
-	c.SetConfig(cfg)
-}
+
 func (c *Cluster) SetConfig(cfg *CfgConfig) {
+	
 	c.culk.Lock(); defer c.culk.Unlock()
 	st := new(RingSet)
 	mm := make(StorageMM)
@@ -176,17 +176,18 @@ func (c *Cluster) SetConfig(cfg *CfgConfig) {
 	c.RingSt = st
 	c.RingMM = mm
 	
-	c.lock.RLock(); defer c.lock.RUnlock()
 	
+	c.lock.RLock(); defer c.lock.RUnlock()
 	for k1,m := range c.Master {
 		for k2,s := range m {
+			
 			if r := mm.RWalk(k1,k2); r!=nil { r.Set(s.Storage,s.Class) }
 		}
 	}
 }
 
 var _ cluster.Handler = (*Cluster)(nil)
-var _ cluster.StateHandler = (*Cluster)(nil)
+//var _ cluster.StateHandler = (*Cluster)(nil)
 var _ gnetwire.MultiStorage = (*Cluster)(nil)
 
 func (c *Cluster) StoreReadMessage(id []byte, over, head, body bool) (bufferex.Binary, error) {

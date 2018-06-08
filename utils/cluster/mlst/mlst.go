@@ -74,7 +74,12 @@ func (d *Delegate) NotifyMerge(peers []*memberlist.Node) error {
 	return nil
 }
 
+type shdef struct{}
+func (shdef) LocalState(join bool) []byte { return nil }
+func (shdef) MergeRemoteState(buf []byte, join bool) {}
+
 func Configure(cfg *memberlist.Config,h cluster.Handler,sh cluster.StateHandler) {
+	if sh==nil { sh = shdef{} }
 	d := &Delegate{sh,h}
 	cfg.Delegate = d
 	cfg.Events = d

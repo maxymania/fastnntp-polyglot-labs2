@@ -43,7 +43,7 @@ network {
 	srv-port: 7003
 	addr: ':9999'
 }
-authorative: 'F:/config/cluster.cfg'
+topology: 'F:/config/cluster.cfg'
 */
 
 type Storage struct {
@@ -70,7 +70,7 @@ type Network struct {
 type Config struct {
 	Storage  []Storage  `inn:"@storage"`
 	Network    Network  `inn:"$network"`
-	Authorative string  `inn:"$authorative"`
+	Authorative string  `inn:"$topology"`
 }
 
 

@@ -34,18 +34,16 @@ import "io/ioutil"
 import "net"
 import "fmt"
 import "log"
-import "time"
-
-const (
-	min_interval = time.Second*15
-)
 
 type Service struct {
 	ml *memberlist.Memberlist
+	cfg *memberlist.Config
 	g  *graph.Cluster
 	srv *fastrpc.Server
 	gsrv *fastrpc.Server
+	l,gl net.Listener
 	err1,err2 chan error
+	
 }
 func (s *Service) serveSrv(l net.Listener) {
 	s.err1 <- s.srv.Serve(l)
@@ -64,8 +62,6 @@ func (s *Service) Init(n *Network,authorative string) error {
 	default     : cfg = memberlist.DefaultLocalConfig()
 	}
 	
-	if cfg.PushPullInterval < min_interval { cfg.PushPullInterval = min_interval }
-	
 	g := new(graph.Cluster)
 	g.LocalMeta.Port = n.N2n
 	g.LocalMeta.UserPort = n.Srv
@@ -74,7 +70,7 @@ func (s *Service) Init(n *Network,authorative string) error {
 	s.gsrv = gnetwire.NewServer(g)
 	s.g = g
 	
-	mlst.Configure(cfg,g,g)
+	mlst.Configure(cfg,g,nil)
 	if authorative!="" {
 		data,err := ioutil.ReadFile(NormToNative(authorative))
 		log.Printf("Authorative config %q %v",authorative,err)
@@ -82,7 +78,6 @@ func (s *Service) Init(n *Network,authorative string) error {
 			gcf := new(graph.CfgConfig)
 			if goconfig.Parse(data,goconfig.CreateReflectHandler(gcf))==nil {
 				g.SetConfig(gcf)
-				g.Authorative = true
 			}
 		}
 	}
@@ -95,18 +90,15 @@ func (s *Service) Init(n *Network,authorative string) error {
 	l,err := net.Listen("tcp",net.JoinHostPort(n.Addr,fmt.Sprint(n.Srv)))
 	if err!=nil { gl.Close(); return err }
 	
+	s.gl=gl
+	s.l=l
+	
 	cfg.BindAddr = n.Addr
 	cfg.BindPort = n.Gossip
 	cfg.AdvertiseAddr = n.Addr
 	cfg.AdvertisePort = n.Gossip
 	
-	go s.serveSrv(l)
-	go s.serveGSrv(gl)
-	
-	s.ml,err = memberlist.Create(cfg)
-	if err!=nil { return err }
-	
-	if len(n.Join)>0 { s.ml.Join(n.Join) }
+	s.cfg = cfg
 	
 	return nil
 }
@@ -116,6 +108,17 @@ func (s *Service) Instantiate(stors []Storage) {
 		if e!=nil { continue }
 		s.g.AddBackend(stors[i].Ring,stors[i].Shard,stt)
 	}
+}
+func (s *Service) Start(n *Network) error {
+	var err error
+	s.ml,err = memberlist.Create(s.cfg)
+	if err!=nil { return err }
+	
+	if len(n.Join)>0 { s.ml.Join(n.Join) }
+	
+	go s.serveSrv(s.l)
+	go s.serveGSrv(s.gl)
+	return nil
 }
 func (s *Service) Wait() error {
 	e1 := <- s.err1
@@ -131,6 +134,8 @@ func (s *Service) Init2(config []byte) error {
 	err = s.Init(&cfg.Network,cfg.Authorative)
 	if err!=nil { return err }
 	s.Instantiate(cfg.Storage)
+	err = s.Start(&cfg.Network)
+	if err!=nil { return err }
 	
 	return nil
 }

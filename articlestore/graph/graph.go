@@ -31,13 +31,16 @@ import "github.com/maxymania/gonbase/hashring/dhash"
 import avl "github.com/emirpasic/gods/trees/avltree"
 import "github.com/emirpasic/gods/utils"
 import "fmt"
+import "log"
 
 type store struct {
 	id,msg []byte
 	expire uint64
 }
 func (s store) Mutate(hash uint64, obj interface{}) bool {
-	return obj.(articlestore.StorageW).StoreWriteMessage(s.id,s.msg,s.expire)==nil
+	e := obj.(articlestore.StorageW).StoreWriteMessage(s.id,s.msg,s.expire)
+	if e!=nil { log.Printf("%v.StoreWriteMessage(%q) -> %v",obj,s.id,e) }
+	return e==nil
 }
 type loader struct {
 	id []byte
@@ -48,12 +51,14 @@ type loader struct {
 func (l *loader) Mutate(hash uint64, obj interface{}) bool {
 	l.b.Free()
 	l.b,l.e = obj.(articlestore.StorageR).StoreReadMessage(l.id,l.over,l.head,l.body)
+	if l.e!=nil { log.Printf("%v.StoreReadMessage(%q) -> %v",obj,l.id,l.e) }
 	return (l.e)==nil
 }
 
 type unimpl struct{}
 func (unimpl) StoreReadMessage(id []byte, over, head, body bool) (bufferex.Binary, error) { return bufferex.Binary{}, articlestore.EFail{} }
 func (unimpl) StoreWriteMessage(id, msg []byte, expire uint64) error { return articlestore.EFail{} }
+func (unimpl) String() string { return "Unimpl" }
 
 /* A None-Object. */
 var Unimpl articlestore.Storage = unimpl{}
@@ -71,6 +76,7 @@ func (s *Storage) Set(obj articlestore.Storage,cls uint) {
 func (s *Storage) Unset() {
 	s.Storage = Unimpl
 }
+func MakeStorage() *Storage { return &Storage{Unimpl,0} }
 
 
 type Ring struct {
@@ -108,7 +114,7 @@ func (r *Ring) Configure(cfg *CfgRing, st map[string]*Storage) {
 		r.R = msr
 	}
 	for _,shard := range cfg.Shard {
-		str := &Storage{Unimpl,0}
+		str := MakeStorage()
 		r.R.AddNode(dhash.Hash64([]byte(shard)),str)
 		st[shard] = str
 	}

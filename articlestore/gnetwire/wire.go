@@ -76,8 +76,8 @@ func (c Client) StoreReadMessage(id []byte, over, head, body bool) (bufferex.Bin
 	
 	req.inner.Type = append(req.inner.Type[:0],"R"...)
 	req.inner.MessageId = append(req.inner.MessageId[:0],id...)
-	req.inner.K1 = append(req.inner.K1,c.K1...)
-	req.inner.K2 = append(req.inner.K1,c.K2...)
+	req.inner.K1 = append(req.inner.K1[:0],c.K1...)
+	req.inner.K2 = append(req.inner.K2[:0],c.K2...)
 	req.inner.Payload = req.inner.Payload[:0]
 	req.inner.Expire = cond(1,over)|cond(2,head)|cond(4,body)
 	
@@ -95,8 +95,8 @@ func (c Client) StoreWriteMessage(id, msg []byte, expire uint64) error {
 	
 	req.inner.Type      = append(req.inner.Type[:0],"W"...)
 	req.inner.MessageId = append(req.inner.MessageId[:0],id...)
-	req.inner.K1 = append(req.inner.K1,c.K1...)
-	req.inner.K2 = append(req.inner.K1,c.K2...)
+	req.inner.K1 = append(req.inner.K1[:0],c.K1...)
+	req.inner.K2 = append(req.inner.K2[:0],c.K2...)
 	req.inner.Payload   = append(req.inner.Payload[:0],msg...)
 	req.inner.Expire    = expire
 	
@@ -104,6 +104,11 @@ func (c Client) StoreWriteMessage(id, msg []byte, expire uint64) error {
 	if err!=nil { return err }
 	
 	return resp.inner.GetError()
+}
+func (c Client) String() string {
+	addr := "<nil>"
+	if c.Cli!=nil { addr = c.Cli.Addr }
+	return "GWire{"+addr+" "+c.K1+" "+c.K2+"}"
 }
 
 var _ articlestore.Storage = Client{}
