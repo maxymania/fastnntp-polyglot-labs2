@@ -36,8 +36,6 @@ var (
 	iTable = []byte("table")
 	iIndex = []byte("index")
 	iCount = []byte("count")
-	
-	//iFree  = []byte("free")
 )
 
 type Tx struct{

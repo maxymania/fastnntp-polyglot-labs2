@@ -32,6 +32,7 @@ var EMissingTable = errors.New("Missing Table")
 type DB struct{
 	inner *bolt.DB
 	name  []byte
+	memtb *memtable
 }
 func (db *DB) batch(f func( b *bolt.Bucket) error) error {
 	var err2 error
@@ -55,7 +56,7 @@ func (db *DB) view(f func( b *bolt.Bucket) error) error {
 }
 
 func NewDB(b *bolt.DB,name []byte) *DB {
-	return &DB{b,name}
+	return &DB{b,name,nil}
 }
 
 
