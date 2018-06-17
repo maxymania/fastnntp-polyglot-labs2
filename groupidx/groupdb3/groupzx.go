@@ -32,7 +32,7 @@ var EMissingTable = errors.New("Missing Table")
 type DB struct{
 	inner *bolt.DB
 	name  []byte
-	memtb *memtable
+	slogs *slogs
 }
 func (db *DB) batch(f func( b *bolt.Bucket) error) error {
 	var err2 error
@@ -56,7 +56,7 @@ func (db *DB) view(f func( b *bolt.Bucket) error) error {
 }
 
 func NewDB(b *bolt.DB,name []byte) *DB {
-	return &DB{b,name,nil}
+	return &DB{b,name,new(slogs)}
 }
 
 
@@ -65,6 +65,13 @@ func (db *DB) GroupHeadRevert(groups [][]byte, nums []int64) error { return EUni
 
 
 func (db *DB) ArticleGroupStat(group []byte, num int64, id_buf []byte) (id []byte, ok bool) {
+	row := db.slogs.lookup(TableKey{Group:group,Number:uint64(num)})
+	if row!=nil {
+		if row.Expires < current { return }
+		id = append(id_buf[:0],row.MessageId...)
+		ok = true
+		return
+	}
 	db.view(func(t *bolt.Bucket) (err error) {
 		id,ok = Tx{t}.ArticleGroupStat(group,num,id_buf)
 		return
@@ -72,10 +79,31 @@ func (db *DB) ArticleGroupStat(group []byte, num int64, id_buf []byte) (id []byt
 	return
 }
 func (db *DB) ArticleGroupMove(group []byte, i int64, backward bool, id_buf []byte) (ni int64, id []byte, ok bool) {
+	row := db.slogs.move(group,uint64(i),backward)
+	if row!=nil {
+		ui := uint64(i)
+		if backward { ui-- } else { ui++ }
+		if row.Number==ui {
+			ni = int64(row.Number)
+			id = append(id_buf[:0],row.MessageId...)
+			ok = true
+			return
+		}
+	}
 	db.view(func(t *bolt.Bucket) (err error) {
 		ni,id,ok = Tx{t}.ArticleGroupMove(group,i,backward,id_buf)
 		return
 	})
+	if row!=nil {
+		if row.Expires < current { return }
+		if ok {
+			if backward && row.Number<=uint64(ni) { return }
+			if (!backward) && row.Number>=uint64(ni) { return }
+		}
+		ni = int64(row.Number)
+		id = append(id_buf[:0],row.MessageId...)
+		ok = true
+	}
 	return
 }
 
@@ -91,16 +119,25 @@ func (db *DB) AssignArticleToGroups(groups [][]byte, nums []int64, exp uint64, i
 	})
 }
 func (db *DB) ListArticleGroupRaw(group []byte, first, last int64, targ func(int64, []byte)) {
+	ntarg,nfin := db.slogs.wrap(group,first,last,targ)
+	defer nfin()
 	db.view(func(t *bolt.Bucket) (err error) {
-		Tx{t}.ListArticleGroupRaw(group,first,last,targ)
+		Tx{t}.ListArticleGroupRaw(group,first,last,ntarg)
 		return
 	})
 }
 func (db *DB) GroupRealtimeQuery(group []byte) (number int64, low int64, high int64, ok bool) {
+	stats := db.slogs.getStats(group)
 	db.view(func(t *bolt.Bucket) (err error) {
 		number,low,high,ok = Tx{t}.GroupRealtimeQuery(group)
 		return
 	})
+	for _,stat := range stats {
+		ok = true
+		if low==0 || low<stat.Low { low = stat.Low }
+		if high==0 || high>stat.High { high = stat.High }
+		number += stat.Count
+	}
 	return
 }
 

@@ -29,6 +29,7 @@ import bolt "github.com/coreos/bbolt"
 import "github.com/maxymania/gonbase/nubrin"
 import "github.com/maxymania/fastnntp-polyglot-labs2/groupidx"
 import "errors"
+import "bytes"
 
 var EUnimplemented = errors.New("EUnimplemented")
 
@@ -83,6 +84,44 @@ func (t Tx) AssignArticleToGroups(groups [][]byte, nums []int64, exp uint64, id 
 	}
 	return nil
 }
+
+/* assumption: Caller holds the s.WB Lock. */
+func (t Tx) insertAllRecords(s *slog) error {
+	var cgrp []byte
+	var tsi nubrin.TSIndex
+	var bkt *bolt.Bucket
+	var err error
+	var count uint64
+	
+	for cur := s.Tree.Left(); cur!=nil; cur = cur.Next() {
+		row := cur.Value.(*TableRow)
+		if len(row.Group)==0 { continue } /* Invalid row! */
+		if !bytes.Equal(row.Group,cgrp) {
+			if len(cgrp)!=0 {
+				err = bkt.Put(iCount,nubrin.Encode(count))
+				if err!=nil { return err }
+			}
+			bkt,err = t.createGroup(row.Group)
+			if err!=nil { return err }
+			tsi = nubrin.TSIndex{
+				Index:bkt.Bucket(iIndex),
+				Table:bkt.Bucket(iTable),
+				Mod:60*60*24,
+			}
+			cgrp = row.Group
+			count = nubrin.Decode(bkt.Get(iCount))
+		}
+		err = tsi.Insert(row.Number,row.Expires,row.MessageId)
+		if err!=nil { return err }
+		count++
+	}
+	if len(cgrp)!=0 {
+		err = bkt.Put(iCount,nubrin.Encode(count))
+		if err!=nil { return err }
+	}
+	return err
+}
+
 
 func (t Tx) ArticleGroupStat(group []byte, num int64, id_buf []byte) ([]byte, bool) {
 	bkt := t.inner.Bucket(group)
