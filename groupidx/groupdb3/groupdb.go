@@ -72,6 +72,7 @@ func (t Tx) AssignArticleToGroup(group []byte, num, exp uint64, id []byte) error
 		Mod:60*60*24,
 	}
 	
+	if len(tsi.Table.Get(nubrin.Encode(num)))!=0 { return nil }
 	err = tsi.Insert(num,exp,id)
 	if err!=nil { return err }
 	
@@ -111,6 +112,7 @@ func (t Tx) insertAllRecords(s *slog) error {
 			cgrp = row.Group
 			count = nubrin.Decode(bkt.Get(iCount))
 		}
+		if len(tsi.Table.Get(nubrin.Encode(row.Number)))!=0 { continue }
 		err = tsi.Insert(row.Number,row.Expires,row.MessageId)
 		if err!=nil { return err }
 		count++
