@@ -288,6 +288,7 @@ func (s *slogs) wrap(group []byte, first, last int64, targ func(int64, []byte)) 
 		if !stats.Cuts(next,i) { return }
 		kb.Number = uint64(next)
 		row := s.ceiling(kb)
+		if row==nil { return }
 		for row.Number<uint64(i) {
 			targ(int64(row.Number),row.MessageId)
 			kb.Number = row.Number+1
