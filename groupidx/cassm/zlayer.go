@@ -127,7 +127,7 @@ func (g *SimpleGroupDB) ArticleGroupList(group []byte, first, last int64, targ f
 		SELECT articlenum
 		FROM agstat
 		WHERE identifier = ? AND articlenum >= ? AND articlenum <= ?
-	`,u,first,last).Iter()
+	`,u,first,last).PageSize(1<<16).Prefetch(.25).Iter()
 	defer iter.Close()
 	var num int64
 	for iter.Scan(&num) {
@@ -141,7 +141,7 @@ func (g *SimpleGroupDB) ListArticleGroupRaw(group []byte, first, last int64, tar
 		SELECT articlenum, messageid
 		FROM agstat
 		WHERE identifier = ? AND articlenum >= ? AND articlenum <= ?
-	`,u,first,last).Iter()
+	`,u,first,last).PageSize(1<<16).Prefetch(.25).Iter()
 	defer iter.Close()
 	var num int64
 	var id []byte

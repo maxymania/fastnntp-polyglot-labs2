@@ -181,7 +181,7 @@ func (g *N2LayerGroupDB) ArticleGroupList(group []byte, first, last int64, targ 
 		SELECT articlepart
 		FROM agstat1l2
 		WHERE identifier = ? AND articlepart >= ? AND articlepart <= ?
-	`,u,n2l1(uint64(first)),n2l1(uint64(last))).PageSize(1<<16))
+	`,u,n2l1(uint64(first)),n2l1(uint64(last))).PageSize(1<<16).Prefetch(.25))
 	defer iter1.Close()
 	var part int64
 	var iter iter
@@ -194,7 +194,7 @@ func (g *N2LayerGroupDB) ArticleGroupList(group []byte, first, last int64, targ 
 			AND articlepart = ?
 			AND articlenum >= ?
 			AND articlenum <= ?
-		`,u,part,first,last).PageSize(1<<16)))
+		`,u,part,first,last).PageSize(1<<16).Prefetch(.25)))
 		var num int64
 		for iter.Scan(&num) {
 			targ(num)
@@ -209,7 +209,7 @@ func (g *N2LayerGroupDB) ListArticleGroupRaw(group []byte, first, last int64, ta
 		SELECT articlepart
 		FROM agstat1l2
 		WHERE identifier = ? AND articlepart >= ? AND articlepart <= ?
-	`,u,n2l1(uint64(first)),n2l1(uint64(last))).PageSize(1<<16))
+	`,u,n2l1(uint64(first)),n2l1(uint64(last))).PageSize(1<<16).Prefetch(.25))
 	defer iter1.Close()
 	var part int64
 	var iter iter
@@ -223,7 +223,7 @@ func (g *N2LayerGroupDB) ListArticleGroupRaw(group []byte, first, last int64, ta
 			AND articlepart = ?
 			AND articlenum >= ?
 			AND articlenum <= ?
-		`,u,part,first,last).PageSize(1<<16)))
+		`,u,part,first,last).PageSize(1<<16).Prefetch(.25)))
 		var num int64
 		for iter.Scan(&num,&id) {
 			targ(num,id)
