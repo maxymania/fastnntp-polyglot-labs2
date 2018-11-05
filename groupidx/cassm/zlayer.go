@@ -35,14 +35,12 @@ But it has the disadvantage, that huge newsgroup may cause a skew distribution
 across partitions.
 */
 type SimpleGroupDB struct{
+	Granularity
 	unimplemented
 	Session     *gocql.Session
 	OnAssign    gocql.Consistency
 	OnIncrement gocql.Consistency
 }
-
-// 24 Hours!
-const DAY = 60*60*24
 
 /*
 Validates the Object arguments such as OnIncrement.
@@ -60,9 +58,8 @@ func (g *SimpleGroupDB) AssignArticleToGroup(group []byte, num, exp uint64, id [
 	gid,err := getUUID(g.Session,group)
 	if err!=nil { return err }
 	
-	secs := int64(time.Until(time.Unix(int64(exp),0))/time.Second) + 1
-	coarse := exp + DAY-1
-	coarse -= (coarse%DAY)
+	ept,coarse := g.convert(exp)
+	secs := int64(time.Until(time.Unix(int64(ept),0))/time.Second) + 1
 	
 	err = g.Session.Query(`
 		INSERT INTO agstat (identifier,articlenum,messageid) VALUES (?,?,?) USING TTL ?
@@ -80,9 +77,8 @@ func (g *SimpleGroupDB) AssignArticleToGroups(groups [][]byte, nums []int64, exp
 		gids[i],err = getUUID(g.Session,group)
 		if err!=nil { return }
 	}
-	secs := int64(time.Until(time.Unix(int64(exp),0))/time.Second) + 1
-	coarse := exp + DAY-1
-	coarse -= (coarse%DAY)
+	ept,coarse := g.convert(exp)
+	secs := int64(time.Until(time.Unix(int64(ept),0))/time.Second) + 1
 	
 	batch := g.Session.NewBatch(gocql.UnloggedBatch)
 	batch.SetConsistency(g.OnAssign)
@@ -114,7 +110,12 @@ func (g *SimpleGroupDB) GroupRealtimeQuery(group []byte) (number int64, low int6
 	ok2 := g.Session.Query(`
 		SELECT SUM(number) FROM agrpcnt WHERE identifier = ? AND livesuntil >= ?
 	`,u,now).Scan(&number)
-	if ok2!=nil { number = 1+high-low }
+	if ok2!=nil {
+		number = 1+high-low
+	} else {
+		num := 1+high-low
+		if number > num { number = num }
+	}
 	return
 }
 

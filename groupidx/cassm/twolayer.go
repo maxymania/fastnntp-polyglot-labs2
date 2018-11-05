@@ -34,6 +34,7 @@ partition is created (in a seperate table) to keept track of those partitions,
 especially to allow ordered traversion of all partitions in the korrect order.
 */
 type N2LayerGroupDB struct{
+	Granularity
 	unimplemented
 	Session     *gocql.Session
 	OnAssign    gocql.Consistency
@@ -52,7 +53,7 @@ func (g *N2LayerGroupDB) Validate(){
 	}
 }
 
-func n2l1(i uint64) uint64{
+func n2l1(i uint64) uint64 {
 	return i & ^uint64(0xFFFFFF)
 }
 
@@ -60,28 +61,27 @@ func (g *N2LayerGroupDB) AssignArticleToGroup(group []byte, num, exp uint64, id 
 	gid,err := getUUID(g.Session,group)
 	if err!=nil { return err }
 	
-	secs := int64(time.Until(time.Unix(int64(exp),0))/time.Second) + 1
-	coarse := exp + DAY-1
-	coarse -= (coarse%DAY)
+	ept,coarse := g.convert(exp)
+	secs := int64(time.Until(time.Unix(int64(ept),0))/time.Second) + 1
 	
 	nxs := n2l1(num)
 	
-	err = g.Session.Query(`
+	err = qExec(g.Session.Query(`
 		INSERT INTO agstat2l2 (identifier,articlepart,articlenum,messageid) VALUES (?,?,?,?) USING TTL ?
-	`,gid,nxs,num,id,secs).Consistency(g.OnAssign).Exec()
+	`,gid,nxs,num,id,secs).Consistency(g.OnAssign))
 	if err!=nil { return err }
-	err = g.Session.Query(`
+	err = qExec(g.Session.Query(`
 		INSERT INTO agstat1l2 (identifier,articlepart,expiresat) VALUES (?,?,?) IF NOT EXISTS USING TTL ?
-	`,gid,nxs,exp,secs).Consistency(g.OnAssign).Exec()
+	`,gid,nxs,exp,secs).Consistency(g.OnAssign))
 	if err!=nil { return err }
-	err = g.Session.Query(`
+	err = qExec(g.Session.Query(`
 		UPDATE agstat1l2 USING TTL ? SET expiresat = ? WHERE identifier = ? AND articlepart = ? IF expiresat < ?
-	`,secs,exp,gid,nxs,exp).Consistency(g.OnAssign).Exec()
+	`,secs,exp,gid,nxs,exp).Consistency(g.OnAssign))
 	if err!=nil { return err }
 	
-	err = g.Session.Query(`
+	err = qExec(g.Session.Query(`
 		UPDATE agrpcnt SET number = number + 1 WHERE identifier = ? AND livesuntil = ?
-	`,gid,coarse).Consistency(g.OnIncrement).Exec()
+	`,gid,coarse).Consistency(g.OnIncrement))
 	
 	return err
 }
@@ -91,9 +91,8 @@ func (g *N2LayerGroupDB) AssignArticleToGroups(groups [][]byte, nums []int64, ex
 		gids[i],err = getUUID(g.Session,group)
 		if err!=nil { return }
 	}
-	secs := int64(time.Until(time.Unix(int64(exp),0))/time.Second) + 1
-	coarse := exp + DAY-1
-	coarse -= (coarse%DAY)
+	ept,coarse := g.convert(exp)
+	secs := int64(time.Until(time.Unix(int64(ept),0))/time.Second) + 1
 	
 	batch := g.Session.NewBatch(gocql.UnloggedBatch)
 	batch.SetConsistency(g.OnAssign)
@@ -137,36 +136,39 @@ func (g *N2LayerGroupDB) GroupRealtimeQuery(group []byte) (number int64, low int
 	
 	var plow,phigh int64
 	
-	iter := g.Session.Query(`
+	pok := qIter(g.Session.Query(`
 		SELECT MIN(articlepart),MAX(articlepart)
 		FROM agstat1l2
 		WHERE identifier = ?
-	`,u).Iter()
-	pok := iter.Scan(&plow,&phigh)
+	`,u)).scanclose(&plow,&phigh)
 	if !pok { ok = true ; return }
 	
-	iter = g.Session.Query(`
+	pok = qIter(g.Session.Query(`
 		SELECT MIN(articlenum)
 		FROM agstat2l2
 		WHERE identifier = ? and articlepart = ?
-	`,u,plow).Iter()
-	pok = iter.Scan(&low)
-	iter.Close()
-	if !pok { ok = true ; return }
+	`,u,plow)).scanclose(&low)
 	
-	iter = g.Session.Query(`
+	ok = true
+	if !pok { return }
+	
+	pok = qIter(g.Session.Query(`
 		SELECT MAX(articlenum)
 		FROM agstat2l2
 		WHERE identifier = ? and articlepart = ?
-	`,u,phigh).Iter()
-	pok = iter.Scan(&high)
-	iter.Close()
-	if !pok { ok,high,number = true,low,1 ; return }
+	`,u,phigh)).scanclose(&high)
 	
-	err2 := g.Session.Query(`
+	if !pok { high,number = low,1 ; return }
+	
+	pok = qIter(g.Session.Query(`
 		SELECT SUM(number) FROM agrpcnt WHERE identifier = ? AND livesuntil >= ?
-	`,u,now).Scan(&number)
-	if err2!=nil { number = 1+high-low }
+	`,u,now)).scanclose(&number)
+	if !pok {
+		number = 1+high-low
+	} else {
+		num := 1+high-low
+		if number > num { number = num }
+	}
 	
 	return
 }
@@ -174,29 +176,29 @@ func (g *N2LayerGroupDB) GroupRealtimeQuery(group []byte) (number int64, low int
 func (g *N2LayerGroupDB) ListArticleGroupRaw(group []byte, first, last int64, targ func(int64, []byte)) {
 	u,err := peekUUID(g.Session,group)
 	if err!=nil { return }
-	
-	iter1 := g.Session.Query(`
+	iter1 := qIter(g.Session.Query(`
 		SELECT articlepart
 		FROM agstat1l2
 		WHERE identifier = ? AND articlepart >= ? AND articlepart <= ?
-	`,u,n2l1(uint64(first)),n2l1(uint64(last))).Iter()
+	`,u,n2l1(uint64(first)),n2l1(uint64(last))).PageSize(1<<16))
 	defer iter1.Close()
 	var part int64
+	var iter iter
+	defer iter.sClose()
 	for iter1.Scan(&part) {
-		iter := g.Session.Query(`
+		iter.place(qIter(g.Session.Query(`
 			SELECT articlenum, messageid
 			FROM agstat2l2
 			WHERE identifier = ?
 			AND articlepart = ?
 			AND articlenum >= ?
 			AND articlenum <= ?
-		`,u,part,first,last).Iter()
+		`,u,part,first,last).PageSize(1<<16)))
 		var num int64
 		var id []byte
 		for iter.Scan(&num,&id) {
 			targ(num,id)
 		}
-		iter.Close()
 	}
 }
 
@@ -204,13 +206,13 @@ func (g *N2LayerGroupDB) ArticleGroupStat(group []byte, num int64, id_buf []byte
 	u,err := peekUUID(g.Session,group)
 	if err!=nil { return nil,false }
 	nxs := n2l1(uint64(num))
-	iter := g.Session.Query(`
-		SELECT messageid FROM agstat2l2 WHERE identifier = ? AND articlepart = ? AND articlenum = ?
-	`,u,nxs,num).Iter()
-	defer iter.Close()
 	
 	id := id_buf
-	ok := iter.Scan(&id)
+	
+	ok := qIter(g.Session.Query(`
+		SELECT messageid FROM agstat2l2 WHERE identifier = ? AND articlepart = ? AND articlenum = ?
+	`,u,nxs,num)).scanclose(&id)
+	
 	return id,ok
 }
 func (g *N2LayerGroupDB) ArticleGroupMove(group []byte, i int64, backward bool, id_buf []byte) (ni int64, id []byte, ok bool) {
@@ -221,25 +223,22 @@ func (g *N2LayerGroupDB) ArticleGroupMove(group []byte, i int64, backward bool, 
 	if backward { sym = "<"; dir = "DESC" }
 	nxs := n2l1(uint64(i))
 	var nxs2 uint64
-	done := g.Session.Query(`
-		SELECT articlepart FROM agstat1l2 WHERE identifier = ? AND articlepart `+sym+` ? ORDER BY articlepart `+dir+`
-	`,u,nxs).Scan(&nxs2)!=nil
+	done := qIter(g.Session.Query(`
+		SELECT articlepart FROM agstat1l2 WHERE identifier = ? AND articlepart `+sym+` ? ORDER BY articlepart `+dir+` LIMIT 1
+	`,u,nxs)).scanclose(&nxs2)
 	
-	iter := g.Session.Query(`
+	ok = qIter(g.Session.Query(`
 		SELECT articlenum,messageid FROM agstat2l2 WHERE identifier = ? AND articlepart = ? AND articlenum `+sym+` ?
-			ORDER BY articlenum `+dir+`
-	`,u,nxs,i).Iter()
-	ok = iter.Scan(&ni,&id)
-	iter.Close()
+			ORDER BY articlenum `+dir+` LIMIT 1
+	`,u,nxs,i)).scanclose(&ni,&id)
+	
 	if ok { return }
 	if !done { return }
 	
-	iter = g.Session.Query(`
+	ok = qIter(g.Session.Query(`
 		SELECT articlenum,messageid FROM agstat2l2 WHERE identifier = ? AND articlepart = ? AND articlenum `+sym+` ?
-			ORDER BY articlenum `+dir+`
-	`,u,nxs2,i).Iter()
-	ok = iter.Scan(&ni,&id)
-	iter.Close()
+			ORDER BY articlenum `+dir+` LIMIT 1
+	`,u,nxs2,i)).scanclose(&ni,&id)
 	
 	return
 }

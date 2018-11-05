@@ -25,6 +25,7 @@ package cassm
 
 import "github.com/gocql/gocql"
 import "errors"
+import "time"
 
 var EUnimplemented = errors.New("EUnimplemented")
 var ENoSuchGroup = errors.New("Missing Group")
@@ -75,6 +76,23 @@ func InitializeN2Layer(session *gocql.Session) {
 		PRIMARY KEY((identifier,articlepart),articlenum)
 	)
 	`).Exec()
+}
+
+/*
+Maintainance routine for the Countertable 'agrpcnt'.
+*/
+func MaintainanceCtrTable(session *gocql.Session) {
+	iter := session.Query(`
+		SELECT identifier,livesuntil FROM agrpcnt WHERE livesuntil < ? ALLOW FILTERING
+	`,time.Now().UTC().Unix()).PageSize(24<<10).Iter()
+	
+	defer iter.Close()
+	
+	var gid gocql.UUID
+	var lives uint64
+	for iter.Scan(&gid,&lives) {
+		session.Query(`DELETE FROM agrpcnt WHERE identifier = ? AND livesuntil = ?`,gid,lives).Exec()
+	}
 }
 
 func getUUID(session *gocql.Session,name []byte) (u gocql.UUID,err error) {
