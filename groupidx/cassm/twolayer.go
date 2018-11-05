@@ -173,7 +173,8 @@ func (g *N2LayerGroupDB) GroupRealtimeQuery(group []byte) (number int64, low int
 	return
 }
 
-func (g *N2LayerGroupDB) ListArticleGroupRaw(group []byte, first, last int64, targ func(int64, []byte)) {
+// Efficient traversal of a newsgroup.
+func (g *N2LayerGroupDB) ArticleGroupList(group []byte, first, last int64, targ func(int64)) {
 	u,err := peekUUID(g.Session,group)
 	if err!=nil { return }
 	iter1 := qIter(g.Session.Query(`
@@ -187,6 +188,35 @@ func (g *N2LayerGroupDB) ListArticleGroupRaw(group []byte, first, last int64, ta
 	defer iter.sClose()
 	for iter1.Scan(&part) {
 		iter.place(qIter(g.Session.Query(`
+			SELECT articlenum
+			FROM agstat2l2
+			WHERE identifier = ?
+			AND articlepart = ?
+			AND articlenum >= ?
+			AND articlenum <= ?
+		`,u,part,first,last).PageSize(1<<16)))
+		var num int64
+		for iter.Scan(&num) {
+			targ(num)
+		}
+	}
+}
+
+func (g *N2LayerGroupDB) ListArticleGroupRaw(group []byte, first, last int64, targ func(int64, []byte)) {
+	u,err := peekUUID(g.Session,group)
+	if err!=nil { return }
+	iter1 := qIter(g.Session.Query(`
+		SELECT articlepart
+		FROM agstat1l2
+		WHERE identifier = ? AND articlepart >= ? AND articlepart <= ?
+	`,u,n2l1(uint64(first)),n2l1(uint64(last))).PageSize(1<<16))
+	defer iter1.Close()
+	var part int64
+	var iter iter
+	defer iter.sClose()
+	var id []byte
+	for iter1.Scan(&part) {
+		iter.place(qIter(g.Session.Query(`
 			SELECT articlenum, messageid
 			FROM agstat2l2
 			WHERE identifier = ?
@@ -195,7 +225,6 @@ func (g *N2LayerGroupDB) ListArticleGroupRaw(group []byte, first, last int64, ta
 			AND articlenum <= ?
 		`,u,part,first,last).PageSize(1<<16)))
 		var num int64
-		var id []byte
 		for iter.Scan(&num,&id) {
 			targ(num,id)
 		}

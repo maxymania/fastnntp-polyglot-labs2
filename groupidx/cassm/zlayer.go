@@ -119,6 +119,21 @@ func (g *SimpleGroupDB) GroupRealtimeQuery(group []byte) (number int64, low int6
 	return
 }
 
+// Efficient traversal of a newsgroup.
+func (g *SimpleGroupDB) ArticleGroupList(group []byte, first, last int64, targ func(int64)) {
+	u,err := peekUUID(g.Session,group)
+	if err!=nil { return }
+	iter := g.Session.Query(`
+		SELECT articlenum
+		FROM agstat
+		WHERE identifier = ? AND articlenum >= ? AND articlenum <= ?
+	`,u,first,last).Iter()
+	defer iter.Close()
+	var num int64
+	for iter.Scan(&num) {
+		targ(num)
+	}
+}
 func (g *SimpleGroupDB) ListArticleGroupRaw(group []byte, first, last int64, targ func(int64, []byte)) {
 	u,err := peekUUID(g.Session,group)
 	if err!=nil { return }
