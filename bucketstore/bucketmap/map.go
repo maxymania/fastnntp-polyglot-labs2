@@ -20,33 +20,50 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-package netmodel
+
+package bucketmap
 
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore"
+import "sync"
 
-type BucketType uint
-const (
-	// If the bucket is not served from any node.
-	// Every bucket in this state is effectively non-existing.
-	None BucketType = iota
-	
-	// If the bucket is served from one node.
-	One
-	
-	// If the bucket is served from more than one node.
-	Some
-	
-	// If the bucket is s
-	All
-)
-
-type Server struct {
+type Bucket struct {
 	Reader bucketstore.BucketR
 	Writer bucketstore.BucketW
 	WriterEx bucketstore.BucketWEx
 }
 
-type Holder interface {
-	GetHolder(bucket []byte) (srv Server,t BucketType)
-}
+type bucketmap map[string]*Bucket
 
+type BucketMap struct{
+	buckets bucketmap
+	access sync.RWMutex
+}
+func (b *BucketMap) Init() {
+	b.buckets = make(bucketmap)
+}
+func (b *BucketMap) Obtain(bucket []byte) (Bucket,bool) {
+	b.access.RLock(); defer b.access.RUnlock()
+	bkt,ok := b.buckets[string(bucket)]
+	if (!ok) || bkt==nil { return Bucket{},false }
+	return *bkt,true
+}
+func (b *BucketMap) ListupRaw() (buckets []string) {
+	b.access.RLock(); defer b.access.RUnlock()
+	buckets = make([]string,0,len(b.buckets))
+	for k := range b.buckets { buckets = append(buckets,k) }
+	return
+}
+func (b *BucketMap) Listup() (buckets [][]byte) {
+	b.access.RLock(); defer b.access.RUnlock()
+	buckets = make([][]byte,0,len(b.buckets))
+	for k := range b.buckets { buckets = append(buckets,[]byte(k)) }
+	return
+}
+func (b *BucketMap) Add(name []byte,buck Bucket) {
+	b.access.Lock(); defer b.access.Unlock()
+	b.buckets[string(name)] = &buck
+}
+func (b *BucketMap) Remove(name []byte) {
+	b.access.Lock(); defer b.access.Unlock()
+	delete(buckets,string(name))
+}

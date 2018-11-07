@@ -23,6 +23,10 @@ SOFTWARE.
 package bucketstore
 
 import "github.com/maxymania/fastnntp-polyglot-labs/bufferex"
+import "fmt"
+
+var EFail = fmt.Errorf("EFail")
+var ENotFound = fmt.Errorf("ENotFound")
 
 type BucketR interface {
 	BucketGet(bucket,key []byte) (bufferex.Binary,error)
@@ -34,5 +38,9 @@ type BucketW interface {
 type Bucket interface {
 	BucketR
 	BucketW
+}
+
+type BucketWEx interface {
+	BucketPutExpire(bucket,key,value []byte,expiresAt uint64) error
 }
 
