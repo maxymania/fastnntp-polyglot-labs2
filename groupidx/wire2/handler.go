@@ -47,16 +47,16 @@ func (r *iRequest) Reply(ok bool, payload []byte) {
 	r.reply = append(r.reply[:0],payload...)
 }
 func (r *iRequest) DecodeReq(dec *msgpack.Decoder) error {
-	return dec.Decode(&r.Type,&r.WantReply,&r.Payload)
+	return dec.DecodeMulti(&r.Type,&r.WantReply,&r.Payload)
 }
 func (r *iRequest) EncodeReq(enc *msgpack.Encoder) error {
-	return enc.Encode(r.Type,r.WantReply,r.Payload)
+	return enc.EncodeMulti(r.Type,r.WantReply,r.Payload)
 }
 func (r *iRequest) DecodeResp(dec *msgpack.Decoder) error {
-	return dec.Decode(&r.ok,&r.reply)
+	return dec.DecodeMulti(&r.ok,&r.reply)
 }
 func (r *iRequest) EncodeResp(enc *msgpack.Encoder) error {
-	return enc.Encode(r.ok,r.reply)
+	return enc.EncodeMulti(r.ok,r.reply)
 }
 
 type handlerctx struct{

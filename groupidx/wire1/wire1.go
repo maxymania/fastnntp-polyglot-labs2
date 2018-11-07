@@ -26,6 +26,7 @@ package wire1
 import "golang.org/x/crypto/ssh"
 import "github.com/maxymania/fastnntp-polyglot-labs2/groupidx"
 import "github.com/vmihailenco/msgpack"
+import "github.com/byte-mug/golibs/msgpackx"
 import "fmt"
 import "net"
 
@@ -55,26 +56,26 @@ func (wh *WireHandler) handle2(ch ssh.Channel, reqs <-chan *ssh.Request) {
 		switch string(line) {
 		case "Quit": return
 		case "ListArticleGroupRaw":
-			err = dec.Decode(&first,&last,&group)
+			err = dec.DecodeMulti(&first,&last,&group)
 			if err!=nil { return }
 			wh.Inner.ListArticleGroupRaw(group,first,last,func(num int64, id []byte){
-				enc.Encode(true,num,id)
+				enc.EncodeMulti(true,num,id)
 			})
-			enc.Encode(false,0,[]byte(nil))
+			enc.EncodeMulti(false,0,[]byte(nil))
 			w.Flush()
 		case "ArticleGroupList":
-			err = dec.Decode(&first,&last,&group)
+			err = dec.DecodeMulti(&first,&last,&group)
 			if err!=nil { return }
 			if obj,ok := wh.Inner.(idxExt1); ok {
 				obj.ArticleGroupList(group,first,last,func(num int64){
-					enc.Encode(true,num)
+					enc.EncodeMulti(true,num)
 				})
 			} else {
 				wh.Inner.ListArticleGroupRaw(group,first,last,func(num int64, id []byte){
-					enc.Encode(true,num)
+					enc.EncodeMulti(true,num)
 				})
 			}
-			enc.Encode(false,0)
+			enc.EncodeMulti(false,0)
 			w.Flush()
 		default: return
 		}
@@ -98,67 +99,67 @@ func (wh *WireHandler) handleRequest(r *ssh.Request) {
 		return
 	case "wire1://GroupHeadInsert":
 		if !r.WantReply { break }
-		err := msgpack.Unmarshal(r.Payload,&groups)
+		err := msgpackx.Unmarshal(r.Payload,&groups)
 		if err==nil {
 			nums,err = wh.Inner.GroupHeadInsert(groups,make([]int64,len(groups)))
 		}
-		data,err2 := msgpack.Marshal(err==nil,fmt.Sprint(err),nums)
+		data,err2 := msgpackx.Marshal(err==nil,fmt.Sprint(err),nums)
 		if err2!=nil { break }
 		r.Reply(true,data)
 		return
 	case "wire1://GroupHeadRevert":
-		err := msgpack.Unmarshal(r.Payload,&groups,&nums)
+		err := msgpackx.Unmarshal(r.Payload,&groups,&nums)
 		if err==nil {
 			err = wh.Inner.GroupHeadRevert(groups,nums)
 		}
-		data,err2 := msgpack.Marshal(err==nil,fmt.Sprint(err))
+		data,err2 := msgpackx.Marshal(err==nil,fmt.Sprint(err))
 		if err2!=nil { break }
 		if r.WantReply { r.Reply(true,data) }
 		return
 	case "wire1://ArticleGroupStat":
 		if !r.WantReply { break }
-		err := msgpack.Unmarshal(r.Payload,&group,&num)
+		err := msgpackx.Unmarshal(r.Payload,&group,&num)
 		if err!=nil { break }
 		id,ok := wh.Inner.ArticleGroupStat(group,num,nil)
 		
-		data,err2 := msgpack.Marshal(ok,id)
+		data,err2 := msgpackx.Marshal(ok,id)
 		if err2!=nil { break }
 		if r.WantReply { r.Reply(true,data) }
 		return
 	case "wire1://ArticleGroupMove":
 		if !r.WantReply { break }
-		err := msgpack.Unmarshal(r.Payload,&group,&num,&backward)
+		err := msgpackx.Unmarshal(r.Payload,&group,&num,&backward)
 		if err!=nil { break }
 		ni,id,ok := wh.Inner.ArticleGroupMove(group,num,backward,nil)
 		
-		data,err2 := msgpack.Marshal(ok,ni,id)
+		data,err2 := msgpackx.Marshal(ok,ni,id)
 		if err2!=nil { break }
 		if r.WantReply { r.Reply(true,data) }
 		return
 	case "wire1://AssignArticleToGroup":
 		if !r.WantReply { break }
-		err := msgpack.Unmarshal(r.Payload,&group,&unum,&exp,&id)
+		err := msgpackx.Unmarshal(r.Payload,&group,&unum,&exp,&id)
 		if err!=nil {
 			err = wh.Inner.AssignArticleToGroup(group,unum,exp,id)
 		}
-		data,err2 := msgpack.Marshal(err==nil,fmt.Sprint(err))
+		data,err2 := msgpackx.Marshal(err==nil,fmt.Sprint(err))
 		if err2!=nil { break }
 		if r.WantReply { r.Reply(true,data) }
 		return
 	case "wire1://AssignArticleToGroups":
 		if !r.WantReply { break }
-		err := msgpack.Unmarshal(r.Payload,&groups,&nums,&exp,&id)
+		err := msgpackx.Unmarshal(r.Payload,&groups,&nums,&exp,&id)
 		if err!=nil {
 			err = wh.Inner.AssignArticleToGroups(groups,nums,exp,id)
 		}
-		data,err2 := msgpack.Marshal(err==nil,fmt.Sprint(err))
+		data,err2 := msgpackx.Marshal(err==nil,fmt.Sprint(err))
 		if err2!=nil { break }
 		if r.WantReply { r.Reply(true,data) }
 		return
 	case "wire1://GroupRealtimeQuery":
 		if !r.WantReply { break }
 		number,low,high,ok := wh.Inner.GroupRealtimeQuery(r.Payload)
-		data,err := msgpack.Marshal(number,low,high,ok)
+		data,err := msgpackx.Marshal(number,low,high,ok)
 		if err!=nil { break }
 		if r.WantReply { r.Reply(true,data) }
 		return

@@ -26,6 +26,7 @@ package wire1
 import "golang.org/x/crypto/ssh"
 import "github.com/maxymania/fastnntp-polyglot-labs2/groupidx"
 import "github.com/vmihailenco/msgpack"
+import "github.com/byte-mug/golibs/msgpackx"
 import "errors"
 import "net"
 
@@ -68,12 +69,12 @@ func (c *Client) Ping() error {
 func (c *Client) GroupHeadInsert(groups [][]byte, buf []int64) ([]int64, error) {
 	var s string
 	var b bool
-	data,err := msgpack.Marshal(groups)
+	data,err := msgpackx.Marshal(groups)
 	if err!=nil { return nil,err }
 	ok,data,err := c.Inner.SendRequest("wire1://GroupHeadInsert",true,data)
 	if err!=nil { return nil,err }
 	if !ok { return nil,ENoResult }
-	err = msgpack.Unmarshal(data,&b,&s,&buf)
+	err = msgpackx.Unmarshal(data,&b,&s,&buf)
 	if err!=nil { return nil,err }
 	return buf,toError(b,s)
 }
@@ -81,36 +82,36 @@ func (c *Client) GroupHeadInsert(groups [][]byte, buf []int64) ([]int64, error) 
 func (c *Client) GroupHeadRevert(groups [][]byte, nums []int64) error {
 	var s string
 	var b bool
-	data,err := msgpack.Marshal(groups,nums)
+	data,err := msgpackx.Marshal(groups,nums)
 	if err!=nil { return err }
 	ok,data,err := c.Inner.SendRequest("wire1://GroupHeadRevert",true,data)
 	if err!=nil { return err }
 	if !ok { return ENoResult }
-	err = msgpack.Unmarshal(data,&b,&s)
+	err = msgpackx.Unmarshal(data,&b,&s)
 	if err!=nil { return err }
 	return toError(b,s)
 }
 
 func (c *Client) ArticleGroupStat(group []byte, num int64, id_buf []byte) ([]byte, bool) {
 	var b bool
-	data,err := msgpack.Marshal(group,num)
+	data,err := msgpackx.Marshal(group,num)
 	if err!=nil { return nil,false }
 	ok,data,err := c.Inner.SendRequest("wire1://ArticleGroupStat",true,data)
 	if err!=nil { return nil,false }
 	if !ok { return nil,false }
-	err = msgpack.Unmarshal(data,&b,&id_buf)
+	err = msgpackx.Unmarshal(data,&b,&id_buf)
 	if err!=nil { return nil,false }
 	return id_buf,b
 }
 
 func (c *Client) ArticleGroupMove(group []byte, i int64, backward bool, id_buf []byte) (ni int64, id []byte, _ok bool) {
 	var b bool
-	data,err := msgpack.Marshal(group,i,backward)
+	data,err := msgpackx.Marshal(group,i,backward)
 	if err!=nil { return 0,nil,false }
 	ok,data,err := c.Inner.SendRequest("wire1://ArticleGroupMove",true,data)
 	if err!=nil { return 0,nil,false }
 	if !ok { return 0,nil,false }
-	err = msgpack.Unmarshal(data,&b,&id_buf,&i)
+	err = msgpackx.Unmarshal(data,&b,&id_buf,&i)
 	if err!=nil { return 0,nil,false }
 	return i,id_buf,b
 }
@@ -119,12 +120,12 @@ func (c *Client) ArticleGroupMove(group []byte, i int64, backward bool, id_buf [
 func (c *Client) AssignArticleToGroup(group []byte, num, exp uint64, id []byte) error {
 	var s string
 	var b bool
-	data,err := msgpack.Marshal(group,num,exp,id)
+	data,err := msgpackx.Marshal(group,num,exp,id)
 	if err!=nil { return err }
 	ok,data,err := c.Inner.SendRequest("wire1://AssignArticleToGroup",true,data)
 	if err!=nil { return err }
 	if !ok { return ENoResult }
-	err = msgpack.Unmarshal(data,&b,&s)
+	err = msgpackx.Unmarshal(data,&b,&s)
 	if err!=nil { return err }
 	return toError(b,s)
 }
@@ -132,12 +133,12 @@ func (c *Client) AssignArticleToGroup(group []byte, num, exp uint64, id []byte) 
 func (c *Client) AssignArticleToGroups(groups [][]byte, nums []int64, exp uint64, id []byte) error {
 	var s string
 	var b bool
-	data,err := msgpack.Marshal(groups,nums,exp,id)
+	data,err := msgpackx.Marshal(groups,nums,exp,id)
 	if err!=nil { return err }
 	ok,data,err := c.Inner.SendRequest("wire1://AssignArticleToGroups",true,data)
 	if err!=nil { return err }
 	if !ok { return ENoResult }
-	err = msgpack.Unmarshal(data,&b,&s)
+	err = msgpackx.Unmarshal(data,&b,&s)
 	if err!=nil { return err }
 	return toError(b,s)
 }
@@ -163,13 +164,13 @@ func (c *Client) ListArticleGroupRaw(group []byte, first, last int64, targ func(
 	enc := msgpack.NewEncoder(w)
 	dec := msgpack.NewDecoder(ch)
 	
-	if err := enc.Encode("ListArticleGroupRaw",first,last,group); err==nil { return }
+	if err := enc.EncodeMulti("ListArticleGroupRaw",first,last,group); err==nil { return }
 	if err := w.Flush(); err!=nil { return }
 	
 	var num int64
 	var id []byte
 	for {
-		if err := dec.Decode(&num,&id); err!=nil { break }
+		if err := dec.DecodeMulti(&num,&id); err!=nil { break }
 		targ(num,id)
 	}
 }
@@ -183,7 +184,7 @@ func (c *Client) ArticleGroupList(group []byte, first, last int64, targ func(int
 	enc := msgpack.NewEncoder(w)
 	dec := msgpack.NewDecoder(ch)
 	
-	if err := enc.Encode("ArticleGroupList",first,last,group); err==nil { return }
+	if err := enc.EncodeMulti("ArticleGroupList",first,last,group); err==nil { return }
 	if err := w.Flush(); err!=nil { return }
 	
 	var num int64
@@ -197,7 +198,7 @@ func (c *Client) GroupRealtimeQuery(group []byte) (number int64, low int64, high
 	rok,data,err := c.Inner.SendRequest("wire1://GroupRealtimeQuery",true,group)
 	if err!=nil { return }
 	if !rok { return }
-	err = msgpack.Unmarshal(data,&number,&low,&high,&ok)
+	err = msgpackx.Unmarshal(data,&number,&low,&high,&ok)
 	if err!=nil { ok = false }
 	return
 }

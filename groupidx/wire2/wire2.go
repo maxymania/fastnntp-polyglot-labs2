@@ -26,6 +26,7 @@ package wire2
 import "github.com/valyala/fastrpc"
 import "github.com/maxymania/fastnntp-polyglot-labs2/groupidx"
 import "github.com/vmihailenco/msgpack"
+import "github.com/byte-mug/golibs/msgpackx"
 import "fmt"
 import "time"
 import "io"
@@ -46,9 +47,9 @@ func createHandler(ginr groupidx.GroupIndex) func(ctx fastrpc.HandlerCtx) fastrp
 	
 	LAGR := func(group []byte, first, last int64, enc *msgpack.Encoder, cls io.Closer) {
 		ginr.ListArticleGroupRaw(group,first,last,func(id int64, bt []byte){
-			enc.Encode(true,id,bt)
+			enc.EncodeMulti(true,id,bt)
 		})
-		enc.Encode(false,int64(0),[]byte(nil))
+		enc.EncodeMulti(false,int64(0),[]byte(nil))
 		cls.Close()
 	}
 	
@@ -56,17 +57,17 @@ func createHandler(ginr groupidx.GroupIndex) func(ctx fastrpc.HandlerCtx) fastrp
 	if x,ok := ginr.(idxExt1); ok {
 		AGL = func(group []byte, first, last int64, enc *msgpack.Encoder, cls io.Closer) {
 			x.ArticleGroupList(group,first,last,func(id int64){
-				enc.Encode(true,id)
+				enc.EncodeMulti(true,id)
 			})
-			enc.Encode(false,int64(0))
+			enc.EncodeMulti(false,int64(0))
 			cls.Close()
 		}
 	} else {
 		AGL = func(group []byte, first, last int64, enc *msgpack.Encoder, cls io.Closer) {
 			ginr.ListArticleGroupRaw(group,first,last,func(id int64, bt []byte){
-				enc.Encode(true,id)
+				enc.EncodeMulti(true,id)
 			})
-			enc.Encode(false,int64(0))
+			enc.EncodeMulti(false,int64(0))
 			cls.Close()
 		}
 	}
@@ -86,7 +87,7 @@ func createHandler(ginr groupidx.GroupIndex) func(ctx fastrpc.HandlerCtx) fastrp
 		case "stream://LAGR","stream://AGL":
 			if !r.WantReply { break }
 			var first, last int64
-			err := msgpack.Unmarshal(r.Payload,&group,&first,&last)
+			err := msgpackx.Unmarshal(r.Payload,&group,&first,&last)
 			if err!=nil { break }
 			
 			n,str  := strmap.allocate(strall,time.Now().Add(tmout))
@@ -124,67 +125,67 @@ func createHandler(ginr groupidx.GroupIndex) func(ctx fastrpc.HandlerCtx) fastrp
 			return
 		case "wire1://GroupHeadInsert":
 			if !r.WantReply { break }
-			err := msgpack.Unmarshal(r.Payload,&groups)
+			err := msgpackx.Unmarshal(r.Payload,&groups)
 			if err==nil {
 				nums,err = ginr.GroupHeadInsert(groups,make([]int64,len(groups)))
 			}
-			data,err2 := msgpack.Marshal(err==nil,fmt.Sprint(err),nums)
+			data,err2 := msgpackx.Marshal(err==nil,fmt.Sprint(err),nums)
 			if err2!=nil { break }
 			r.Reply(true,data)
 			return
 		case "wire1://GroupHeadRevert":
-			err := msgpack.Unmarshal(r.Payload,&groups,&nums)
+			err := msgpackx.Unmarshal(r.Payload,&groups,&nums)
 			if err==nil {
 				err = ginr.GroupHeadRevert(groups,nums)
 			}
-			data,err2 := msgpack.Marshal(err==nil,fmt.Sprint(err))
+			data,err2 := msgpackx.Marshal(err==nil,fmt.Sprint(err))
 			if err2!=nil { break }
 			if r.WantReply { r.Reply(true,data) }
 			return
 		case "wire1://ArticleGroupStat":
 			if !r.WantReply { break }
-			err := msgpack.Unmarshal(r.Payload,&group,&num)
+			err := msgpackx.Unmarshal(r.Payload,&group,&num)
 			if err!=nil { break }
 			id,ok := ginr.ArticleGroupStat(group,num,nil)
 			
-			data,err2 := msgpack.Marshal(ok,id)
+			data,err2 := msgpackx.Marshal(ok,id)
 			if err2!=nil { break }
 			if r.WantReply { r.Reply(true,data) }
 			return
 		case "wire1://ArticleGroupMove":
 			if !r.WantReply { break }
-			err := msgpack.Unmarshal(r.Payload,&group,&num,&backward)
+			err := msgpackx.Unmarshal(r.Payload,&group,&num,&backward)
 			if err!=nil { break }
 			ni,id,ok := ginr.ArticleGroupMove(group,num,backward,nil)
 			
-			data,err2 := msgpack.Marshal(ok,ni,id)
+			data,err2 := msgpackx.Marshal(ok,ni,id)
 			if err2!=nil { break }
 			if r.WantReply { r.Reply(true,data) }
 			return
 		case "wire1://AssignArticleToGroup":
 			if !r.WantReply { break }
-			err := msgpack.Unmarshal(r.Payload,&group,&unum,&exp,&id)
+			err := msgpackx.Unmarshal(r.Payload,&group,&unum,&exp,&id)
 			if err==nil {
 				err = ginr.AssignArticleToGroup(group,unum,exp,id)
 			}
-			data,err2 := msgpack.Marshal(err==nil,fmt.Sprint(err))
+			data,err2 := msgpackx.Marshal(err==nil,fmt.Sprint(err))
 			if err2!=nil { break }
 			if r.WantReply { r.Reply(true,data) }
 			return
 		case "wire1://AssignArticleToGroups":
 			if !r.WantReply { break }
-			err := msgpack.Unmarshal(r.Payload,&groups,&nums,&exp,&id)
+			err := msgpackx.Unmarshal(r.Payload,&groups,&nums,&exp,&id)
 			if err==nil {
 				err = ginr.AssignArticleToGroups(groups,nums,exp,id)
 			}
-			data,err2 := msgpack.Marshal(err==nil,fmt.Sprint(err))
+			data,err2 := msgpackx.Marshal(err==nil,fmt.Sprint(err))
 			if err2!=nil { break }
 			if r.WantReply { r.Reply(true,data) }
 			return
 		case "wire1://GroupRealtimeQuery":
 			if !r.WantReply { break }
 			number,low,high,ok := ginr.GroupRealtimeQuery(r.Payload)
-			data,err := msgpack.Marshal(number,low,high,ok)
+			data,err := msgpackx.Marshal(number,low,high,ok)
 			if err!=nil { break }
 			if r.WantReply { r.Reply(true,data) }
 			return
