@@ -24,7 +24,7 @@ SOFTWARE.
 package caps
 
 import "github.com/byte-mug/fastnntp/posting"
-import "github.com/vmihailenco/msgpack"
+import "github.com/byte-mug/golibs/msgpackx"
 import "github.com/maxymania/fastnntp-polyglot"
 import "github.com/maxymania/fastnntp-polyglot/policies"
 import "github.com/maxymania/fastnntp-polyglot-labs2/groupidx"
@@ -143,7 +143,7 @@ func (a *ArticleDB) ArticlePostingPost(headp *posting.HeadInfo, body []byte, ngs
 	
 	bl := int64(len(headp.RAW)+2+len(body))
 	ll := posting.CountLines(body)
-	overv,_ := msgpack.Marshal(flatten2V(headp,bl,ll)...)
+	overv,_ := msgpackx.Marshal(flatten2V(headp,bl,ll)...)
 	
 	decision := policies.Def(a.Policy).Decide(ngs,ll,bl)
 	

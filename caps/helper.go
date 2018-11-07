@@ -47,7 +47,7 @@ func zunmarshal(data []byte,v... interface{}) error {
 		r = ir.(io.ReadCloser)
 	}
 	defer flatePool.Put(r)
-	e := msgpack.NewDecoder(r).Decode(v...)
+	e := msgpack.NewDecoder(r).DecodeMulti(v...)
 	return e
 }
 
