@@ -28,7 +28,7 @@ import "github.com/maxymania/fastnntp-polyglot-labs/bufferex"
 import "github.com/maxymania/fastnntp-polyglot-labs2/utils/cluster"
 import "github.com/valyala/fastrpc"
 import "sync"
-import "github.com/vmihailenco/msgpack"
+import "github.com/byte-mug/golibs/msgpackx"
 import "github.com/maxymania/fastnntp-polyglot-labs2/articlestore/gnetwire"
 import "net"
 //import "log"
@@ -46,11 +46,11 @@ type ClusterMetadata struct {
 }
 func (c *ClusterMetadata) Decode(n *cluster.Node) bool {
 	var s string
-	b := msgpack.Unmarshal(n.Meta,&s,c)==nil
+	b := msgpackx.Unmarshal(n.Meta,&s,c)==nil
 	return b && s=="GRAPH"
 }
 func (c *ClusterMetadata) Encode() []byte {
-	data,_ := msgpack.Marshal("GRAPH",c)
+	data,_ := msgpackx.Marshal("GRAPH",c)
 	return data
 }
 
