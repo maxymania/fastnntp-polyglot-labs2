@@ -105,14 +105,14 @@ func (d *Deleg) NotifyLeave(n *memberlist.Node) { }
 func (d *Deleg) NotifyUpdate(n *memberlist.Node) { }
 
 // After calling, the 'name' array must no be modified.
-func (d *Deleg) AddBucket(name []byte,buck Bucket) {
+func (d *Deleg) AddBucket(name []byte,buck bucketmap.Bucket) {
 	d.BM.Add(name,buck)
-	d.TLQ.QueueBroadcast(Command{CmdAdd,d.Self,name})
+	d.TLQ.QueueBroadcast(&Command{CmdAdd,d.Self,name})
 }
 
 // After calling, the 'name' array must no be modified.
 func (d *Deleg) DeleteBucket(name []byte) {
 	d.BM.Remove(name)
-	d.TLQ.QueueBroadcast(Command{CmdSub,d.Self,name})
+	d.TLQ.QueueBroadcast(&Command{CmdSub,d.Self,name})
 }
 

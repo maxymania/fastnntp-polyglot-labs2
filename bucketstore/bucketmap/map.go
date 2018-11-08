@@ -65,5 +65,5 @@ func (b *BucketMap) Add(name []byte,buck Bucket) {
 }
 func (b *BucketMap) Remove(name []byte) {
 	b.access.Lock(); defer b.access.Unlock()
-	delete(buckets,string(name))
+	delete(b.buckets,string(name))
 }
