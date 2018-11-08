@@ -33,6 +33,7 @@ import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/bucketmap"
 import "github.com/vmihailenco/msgpack"
 import "github.com/byte-mug/golibs/msgpackx"
 import "github.com/hashicorp/memberlist"
+import "sort"
 
 const (
 	CmdAdd uint = iota
@@ -54,6 +55,15 @@ func (c *Command) Finished() {}
 
 const Magic uint = 0xcafedead
 
+type DistanceMeter interface{
+	Distance(l,r string) int
+}
+type simplistic struct{}
+func (simplistic) Distance(l,r string) int {
+	if l==r { return 1 }
+	return 0
+}
+
 type Metadata struct{
 	Loc string `msgpack:loc`
 	Port int   `msgpack:rpc`
@@ -66,6 +76,7 @@ type NodeMetadata struct{
 	Name string
 	IP   net.IP
 	Metadata
+	distance int
 }
 func (m *NodeMetadata) String() string {
 	return fmt.Sprintf("%q/%v%v",m.Name,m.IP,&m.Metadata)
@@ -85,8 +96,16 @@ type Deleg struct{
 	NM  globmap.NodeMap
 	BM  bucketmap.BucketMap
 	
+	Dist DistanceMeter
+	
 	othersL sync.RWMutex
 	othersM mdmap
+}
+func (d *Deleg) SortNodesDistance(s []*NodeMetadata) {
+	dist := d.Dist
+	if dist==nil { dist = simplistic{} }
+	for i := range s { s[i].distance = dist.Distance(s[i].Loc,d.Meta.Loc) }
+	sort.Slice(s,func(i,j int) bool { return s[i].distance < s[j].distance })
 }
 func (d *Deleg) numNodes() int {
 	if ml := d.ML; ml!=nil {
@@ -156,13 +175,32 @@ func (d *Deleg) NotifyLeave(n *memberlist.Node) {
 func (d *Deleg) NotifyUpdate(n *memberlist.Node) {
 	d.onNode(n)
 }
+func (d *Deleg) NotifyAlive(peer *memberlist.Node) error {
+	return d.NotifyMerge([]*memberlist.Node{peer})
+}
+func (d *Deleg) NotifyMerge(peers []*memberlist.Node) error {
+	var u uint
+	var m Metadata
+	for _,peer := range peers {
+		err := msgpackx.Unmarshal(peer.Meta,&u,&m)
+		if err!=nil { return err }
+		if u!=Magic { return fmt.Errorf("wrong magic number: got %x expected %x",u,Magic)}
+	}
+	return nil
+}
 
+
+// ----
 func (d *Deleg) GetAll(nodes []string,appndTo []*NodeMetadata) []*NodeMetadata {
 	d.othersL.RLock(); defer d.othersL.RUnlock()
 	for _,node := range nodes {
 		appndTo = append(appndTo,d.othersM[node])
 	}
 	return appndTo
+}
+func (d *Deleg) GetOne(node string) *NodeMetadata {
+	d.othersL.RLock(); defer d.othersL.RUnlock()
+	return d.othersM[node]
 }
 
 // After calling, the 'name' array must no be modified.
