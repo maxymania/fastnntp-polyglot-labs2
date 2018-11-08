@@ -23,6 +23,7 @@ SOFTWARE.
 package netmodel
 
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore"
+import "fmt"
 
 type BucketType uint
 const (
@@ -39,6 +40,15 @@ const (
 	// If the bucket is s
 	All
 )
+func (b BucketType) String() string {
+	switch b{
+	case None: return "None"
+	case One: return "One"
+	case Some: return "Some"
+	case All: return "All"
+	}
+	return fmt.Sprint("BucketType(",uint(b),")")
+}
 
 type Server struct {
 	Reader bucketstore.BucketR

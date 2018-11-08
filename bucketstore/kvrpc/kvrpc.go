@@ -35,7 +35,7 @@ type GBucket interface{
 	bucketstore.BucketWEx
 }
 
-func build() fastrpc.HandlerCtx { return new(reqCtx) }
+func NewHandler() fastrpc.HandlerCtx { return new(reqCtx) }
 func nresp() fastrpc.ResponseReader { return new(resp) }
 
 func e2s(e error) string {
@@ -71,6 +71,14 @@ func Makehandler(b GBucket) func(ctx fastrpc.HandlerCtx) fastrpc.HandlerCtx {
 		return ctx
 	}
 }
+func NewServer(b GBucket) *fastrpc.Server {
+	return &fastrpc.Server{
+		NewHandlerCtx: NewHandler,
+		Handler: Makehandler(b),
+	}
+}
+
+
 type Client struct{
 	Cli fastrpc.Client
 }

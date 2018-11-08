@@ -48,7 +48,7 @@ func (p *pool) get() interface{} {
 }
 func (p *pool) put(v interface{}) {
 	p.Lock(); defer p.Unlock()
-	p.PushFront(v)
+	p.PushBack(v)
 }
 
 type NodeSelector struct{
@@ -69,6 +69,13 @@ func (n *NodeSelector) putn(name string,c *kvrpc.Client) bool {
 	if _,ok := n.m[name]; ok { return false }
 	n.m[name] = c
 	return true
+}
+func (n *NodeSelector) kickn(name string) {
+	n.ml.Lock(); defer n.ml.Unlock()
+	c,ok := n.m[name]
+	if !ok { return }
+	delete(n.m,name)
+	n.p.put(c)
 }
 func (n *NodeSelector) newClient(name string) *kvrpc.Client {
 	c,_ := n.p.get().(*kvrpc.Client)
@@ -101,6 +108,7 @@ func (n *NodeSelector) Init(de *cluster.Deleg) *NodeSelector {
 	n.sel = &selector.Selector{&de.BM}
 	n.p.List = list.New()
 	n.m = make(map[string]*kvrpc.Client)
+	de.AddLeaveListener(n.kickn)
 	return n
 }
 func (n *NodeSelector) GetHolder(bucket []byte) (srv netmodel.Server, t netmodel.BucketType) {

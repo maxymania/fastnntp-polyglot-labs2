@@ -100,6 +100,15 @@ type Deleg struct{
 	
 	othersL sync.RWMutex
 	othersM mdmap
+	
+	leaveListener []func(string)
+	joinListener []func(string)
+}
+func (d *Deleg) AddLeaveListener(f func(string)){
+	d.leaveListener = append(d.leaveListener,f)
+}
+func (d *Deleg) AddJoinListener(f func(string)){
+	d.joinListener = append(d.joinListener,f)
 }
 func (d *Deleg) SortNodesDistance(s []*NodeMetadata) {
 	dist := d.Dist
@@ -168,9 +177,11 @@ func (d *Deleg) NotifyJoin(n *memberlist.Node) {
 		}
 	}
 	d.onNode(n)
+	for _,f := range d.joinListener { f(n.Name) }
 }
 func (d *Deleg) NotifyLeave(n *memberlist.Node) {
 	d.NM.DropNode(n.Name)
+	for _,f := range d.leaveListener { f(n.Name) }
 }
 func (d *Deleg) NotifyUpdate(n *memberlist.Node) {
 	d.onNode(n)
