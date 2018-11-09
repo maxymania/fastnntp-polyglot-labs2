@@ -35,21 +35,37 @@ type Selector struct {
 	NKV *netkv.NetKVMap
 }
 func (s *Selector) BucketGet(bucket, key []byte) (bufferex.Binary, error) {
+	if b := s.NKV.Get(bucket); b!=nil {
+		if b.Reader==nil { return bufferex.Binary{},notImpl }
+		return b.Reader.BucketGet(bucket,key)
+	}
 	b,_ := s.BM.Obtain(bucket)
 	if b.Reader==nil { return bufferex.Binary{},notImpl }
 	return b.Reader.BucketGet(bucket,key)
 }
 func (s *Selector) BucketPut(bucket, key, value []byte) error {
+	if b := s.NKV.Get(bucket); b!=nil {
+		if b.Writer==nil { return notImpl }
+		return b.Writer.BucketPut(bucket,key,value)
+	}
 	b,_ := s.BM.Obtain(bucket)
 	if b.Writer==nil { return notImpl }
 	return b.Writer.BucketPut(bucket,key,value)
 }
 func (s *Selector) BucketDelete(bucket, key []byte) error {
+	if b := s.NKV.Get(bucket); b!=nil {
+		if b.Writer==nil { return notImpl }
+		return b.Writer.BucketDelete(bucket,key)
+	}
 	b,_ := s.BM.Obtain(bucket)
 	if b.Writer==nil { return notImpl }
 	return b.Writer.BucketDelete(bucket,key)
 }
 func (s *Selector) BucketPutExpire(bucket, key, value []byte, expiresAt uint64) error {
+	if b := s.NKV.Get(bucket); b!=nil {
+		if b.WriterEx==nil { return notImpl }
+		return b.WriterEx.BucketPutExpire(bucket,key,value,expiresAt)
+	}
 	b,_ := s.BM.Obtain(bucket)
 	if b.WriterEx==nil { return notImpl }
 	return b.WriterEx.BucketPutExpire(bucket,key,value,expiresAt)
