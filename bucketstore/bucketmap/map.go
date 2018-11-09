@@ -47,6 +47,12 @@ func (b *BucketMap) Obtain(bucket []byte) (Bucket,bool) {
 	if (!ok) || bkt==nil { return Bucket{},false }
 	return *bkt,true
 }
+func (b *BucketMap) Contains(bucket []byte) (bool) {
+	b.access.RLock(); defer b.access.RUnlock()
+	bkt,ok := b.buckets[string(bucket)]
+	if (!ok) || bkt==nil { return false }
+	return true
+}
 func (b *BucketMap) ListupRaw() (buckets []string) {
 	b.access.RLock(); defer b.access.RUnlock()
 	buckets = make([]string,0,len(b.buckets))

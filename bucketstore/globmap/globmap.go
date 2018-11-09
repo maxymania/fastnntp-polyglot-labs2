@@ -86,6 +86,10 @@ func (n *NodeMap) NodesB(bucket []byte) []string {
 	n.access.RLock(); defer n.access.RUnlock()
 	return clonesp(n.b2n[string(bucket)])
 }
+func (n *NodeMap) CountNodes(bucket []byte) int {
+	n.access.RLock(); defer n.access.RUnlock()
+	return len(n.b2n[string(bucket)])
+}
 func (n *NodeMap) ContainsOrReturnNodes(self string,bucket []byte) (bool,int,[]string) {
 	n.access.RLock(); defer n.access.RUnlock()
 	for _,nd := range n.b2n[string(bucket)] { if nd==self { return true,len(n.b2n[string(bucket)]),nil } }

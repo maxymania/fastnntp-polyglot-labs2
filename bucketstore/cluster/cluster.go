@@ -30,15 +30,42 @@ import "sync"
 //import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore"
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/globmap"
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/bucketmap"
+import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/netkv"
 import "github.com/vmihailenco/msgpack"
 import "github.com/byte-mug/golibs/msgpackx"
 import "github.com/hashicorp/memberlist"
 import "sort"
 
 const (
+	// &Command{}
 	CmdAdd uint = iota
 	CmdSub
+	
+	// &NetKvStore{}
+	NetAdd
+	NetRem
 )
+
+type NetKvStore struct{
+	// NetAdd,NetRem
+	Op     uint
+	Prov,Loc string
+	Bucket,Meta []byte
+}
+func (c *NetKvStore) Invalidates(b memberlist.Broadcast) bool {
+	switch o := b.(type) {
+	case *NetKvStore:
+		if string(c.Bucket)!=string(o.Bucket) { return false }
+		if c.Loc!=o.Loc { return false }
+		return c.Op!=c.Op
+	}
+	return false
+}
+func (c *NetKvStore) Message() []byte {
+	b,_ := msgpackx.Marshal(c.Op,c.Loc,c.Prov,c.Bucket,c.Meta)
+	return b
+}
+func (c *NetKvStore) Finished() {}
 
 type Command struct{
 	Op     uint
@@ -46,7 +73,14 @@ type Command struct{
 	Bucket []byte
 }
 
-func (c *Command) Invalidates(b memberlist.Broadcast) bool { return false }
+func (c *Command) Invalidates(b memberlist.Broadcast) bool {
+	switch o := b.(type) {
+	case *Command:
+		if string(c.Bucket)!=string(o.Bucket) { return false }
+		return c.Op!=c.Op
+	}
+	return false
+}
 func (c *Command) Message() []byte {
 	b,_ := msgpackx.Marshal(c.Op,c.Node,c.Bucket)
 	return b
@@ -63,6 +97,8 @@ func (simplistic) Distance(l,r string) int {
 	if l==r { return 1 }
 	return 0
 }
+
+type nkvm map[string]*NetKvStore
 
 type Metadata struct{
 	Loc string `msgpack:loc`
@@ -95,8 +131,13 @@ type Deleg struct{
 	ML  *memberlist.Memberlist
 	NM  globmap.NodeMap
 	BM  bucketmap.BucketMap
+	NKV netkv.NetKVMap
 	
 	Dist DistanceMeter
+	
+	nkvL    sync.RWMutex
+	nkvAdd nkvm
+	nkvRem nkvm
 	
 	othersL sync.RWMutex
 	othersM mdmap
@@ -127,6 +168,9 @@ func (d *Deleg) Init() {
 	d.TLQ.RetransmitMult = 1
 	d.NM.Init()
 	d.BM.Init()
+	d.NKV.Init()
+	d.nkvAdd = make(nkvm)
+	d.nkvRem = make(nkvm)
 	d.othersM = make(mdmap)
 }
 func (d *Deleg) NodeMeta(limit int) []byte {
@@ -135,6 +179,39 @@ func (d *Deleg) NodeMeta(limit int) []byte {
 	data,_ := msgpackx.Marshal(Magic,m)
 	return data
 }
+func (d *Deleg) loc() string {
+	m := d.Meta
+	if m==nil { return "" }
+	return m.Loc
+}
+func (d *Deleg) getNetKvStoreEncoded(buf *bytes.Buffer) {
+	d.nkvL.RLock(); defer d.nkvL.RUnlock()
+	for _,v := range d.nkvAdd { buf.Write(v.Message()) }
+	for _,v := range d.nkvRem { buf.Write(v.Message()) }
+}
+func (d *Deleg) handleNetKvStore(n *NetKvStore) {
+	if !(n.Loc=="" || n.Loc==d.loc()) { return } // If out of loc, ignore.
+	
+	switch n.Op {
+	case NetAdd:
+		if !d.NKV.Offer(n.Prov,n.Bucket,n.Meta,n.Loc=="") { return }
+		if n.Loc!="" { d.TLQ.QueueBroadcast(&Command{CmdAdd,d.Self,n.Bucket}) }
+	case NetRem:
+		d.NKV.Remove(n.Bucket)
+		if n.Loc!="" { d.TLQ.QueueBroadcast(&Command{CmdSub,d.Self,n.Bucket}) }
+	}
+	
+	d.nkvL.Lock(); defer d.nkvL.Unlock()
+	switch n.Op {
+	case NetAdd:
+		delete(d.nkvRem,string(n.Bucket))
+		d.nkvAdd[string(n.Bucket)] = n
+	case NetRem:
+		delete(d.nkvAdd,string(n.Bucket))
+		d.nkvRem[string(n.Bucket)] = n
+	}
+}
+
 func (d *Deleg) NotifyMsg(msg []byte) {
 	var op uint
 	var node string
@@ -148,6 +225,13 @@ func (d *Deleg) NotifyMsg(msg []byte) {
 			switch op {
 			case CmdAdd: d.NM.Set(node,string(buck))
 			case CmdSub: d.NM.Drop(node,string(buck))
+			}
+		case NetAdd,NetRem:
+			{
+				c := new(NetKvStore)
+				c.Op = op
+				if dec.DecodeMulti(&c.Loc,&c.Prov,&c.Bucket,&c.Meta)!=nil { return }
+				d.handleNetKvStore(c)
 			}
 		}
 	}
@@ -172,6 +256,10 @@ func (d *Deleg) NotifyJoin(n *memberlist.Node) {
 		for _,e := range d.BM.ListupRaw() {
 			enc.EncodeMulti(CmdAdd,d.Self,[]byte(e))
 		}
+		for _,e := range d.NKV.GetLocalBuckets() {
+			enc.EncodeMulti(CmdAdd,d.Self,[]byte(e))
+		}
+		d.getNetKvStoreEncoded(&buf)
 		if buf.Len()>0 {
 			go ml.SendReliable(n, buf.Bytes())
 		}
@@ -226,5 +314,10 @@ func (d *Deleg) DeleteBucket(name []byte) {
 	d.NM.Drop(d.Self,string(name))
 	d.BM.Remove(name)
 	d.TLQ.QueueBroadcast(&Command{CmdSub,d.Self,name})
+}
+// After calling, the *NetKvStore data structure and all buffers used by it must not be used.
+func (d *Deleg) OfferNetKvStore(n *NetKvStore) {
+	d.handleNetKvStore(n)
+	d.TLQ.QueueBroadcast(n)
 }
 

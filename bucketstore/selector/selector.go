@@ -25,12 +25,14 @@ package selector
 
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore"
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/bucketmap"
+import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/netkv"
 import "github.com/maxymania/fastnntp-polyglot-labs/bufferex"
 
 var notImpl = bucketstore.EFail
 
 type Selector struct {
 	BM *bucketmap.BucketMap
+	NKV *netkv.NetKVMap
 }
 func (s *Selector) BucketGet(bucket, key []byte) (bufferex.Binary, error) {
 	b,_ := s.BM.Obtain(bucket)
