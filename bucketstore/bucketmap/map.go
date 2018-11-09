@@ -47,7 +47,7 @@ func (b *BucketMap) Obtain(bucket []byte) (Bucket,bool) {
 	if (!ok) || bkt==nil { return Bucket{},false }
 	return *bkt,true
 }
-func (b *BucketMap) Contains(bucket []byte) (bool) {
+func (b *BucketMap) Contains(bucket []byte) bool {
 	b.access.RLock(); defer b.access.RUnlock()
 	bkt,ok := b.buckets[string(bucket)]
 	if (!ok) || bkt==nil { return false }
