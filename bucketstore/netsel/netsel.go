@@ -164,4 +164,57 @@ func (n *NodeSelector) GetHolder(bucket []byte) (srv netmodel.Server, t netmodel
 	}
 	return
 }
+func (n *NodeSelector) oldGetHolder(bucket []byte) (srv netmodel.Server, t netmodel.BucketType) {
+	/*
+	We generally consult our local maps first (NKV and BM).
+	
+	Step 1: consult NKV
+	*/
+	if glo,has := n.de.NKV.IsNet(bucket) ; has {
+		srv.Reader = n.sel
+		srv.Writer = n.sel
+		srv.WriterEx = n.sel
+		if glo {
+			t = netmodel.All
+		} else {
+			switch n.de.NM.CountNodes(bucket) {
+			case 0,1: t = netmodel.One
+			default: t = netmodel.Some
+			}
+		}
+		return
+	}
+	/*
+	Step 2: consult BM
+	*/
+	if n.de.BM.Contains(bucket) {
+		srv.Reader = n.sel
+		srv.Writer = n.sel
+		srv.WriterEx = n.sel
+		switch n.de.NM.CountNodes(bucket) {
+		case 0,1: t = netmodel.One
+		default: t = netmodel.Some
+		}
+		return
+	}
+	/*
+	If we don't have the bucket, it is almost guaranteed, that we won't be
+	one of the nodes, sharing this bucket.
+	*/
+	nodes := n.de.NM.NodesB(bucket)
+	switch len(nodes) {
+	case 0: t = netmodel.None; return
+	case 1: t = netmodel.One
+	default: t = netmodel.Some
+	}
+	elems := n.de.GetAll(nodes,make([]*cluster.NodeMetadata,0,len(nodes)))
+	n.de.SortNodesDistance(elems)
+	{
+		cli := n.getClient(elems[0].Name)
+		srv.Reader = cli
+		srv.Writer = cli
+		srv.WriterEx = cli
+	}
+	return
+}
 
