@@ -82,7 +82,6 @@ Config data structure. To be parsed with confl.
 		"G:\bucket"
 	]
 */
-
 type Config struct{
 	runner.Configuration
 	Service runner.Bind
