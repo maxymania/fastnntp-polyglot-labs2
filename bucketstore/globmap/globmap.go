@@ -74,6 +74,12 @@ func (n *NodeMap) Init() {
 	n.n2b = make(nodemap)
 	n.b2n = make(nodemap)
 }
+func (n *NodeMap) GetBucketList() []string {
+	n.access.RLock(); defer n.access.RUnlock()
+	sl := make([]string,len(n.b2n))
+	for s := range n.b2n { sl = append(sl,s) }
+	return sl
+}
 func (n *NodeMap) Buckets(node string) []string {
 	n.access.RLock(); defer n.access.RUnlock()
 	return clonesp(n.n2b[node])
