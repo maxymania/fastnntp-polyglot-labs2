@@ -27,7 +27,7 @@ import "github.com/gocql/gocql"
 import "github.com/maxymania/fastnntp-polyglot/buffer"
 import "github.com/maxymania/fastnntp-polyglot-labs2/articlestore"
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/netmodel"
-//import "github.com/maxymania/fastnntp-polyglot-labs/bufferex"
+import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/selerr"
 
 import "time"
 
@@ -45,14 +45,16 @@ type StoreWriter struct {
 	UseFastOver bool
 }
 
-func (s *StoreWriter) StoreWriteMessage(id, msg []byte, expire uint64) error {
+func (s *StoreWriter) StoreWriteMessage(id, msg []byte, expire uint64) (err error) {
 	bkt,ok := s.Sched.NextBucket(); if !ok { return articlestore.VEFail }
 	srv,ok := s.Flook.FastLookup(bkt); if !ok { return articlestore.VEFail }
 	xover,head,body := articlestore.UnpackMessage(msg)
+	var nxover []byte
+	
+	idb,bts := extend(id)
+	defer idb.Free()
 	
 	rid := gocql.TimeUUID()
-	secs := int64(time.Until(time.Unix(int64(expire),0))/time.Second) + 1
-	var err error
 	
 	var ide []byte
 	{
@@ -62,90 +64,73 @@ func (s *StoreWriter) StoreWriteMessage(id, msg []byte, expire uint64) error {
 	}
 	copy(ide,id)
 	
-	switch {
-	case srv.WriterEx!=nil && s.UseFastOver:
-		ide[len(id)]='h'
-		err = srv.WriterEx.BucketPutExpire(bkt,ide,head,expire)
-		if err!=nil { return err }
-		ide[len(id)]='b'
-		err = srv.WriterEx.BucketPutExpire(bkt,ide,body,expire)
-		if err!=nil { return err }
-		err = s.Session.Query(`
-		INSERT INTO article_locs
-		 (messageid,recid,tmbmb,xover,hbkt,bbkt,hbkp,bbkp) VALUES
-		 (?        ,?    ,true ,?    ,?   ,?   ,true,true) USING TTL ?
-		`,id       ,rid        ,xover,bkt  ,bkt                      ,secs).Exec()
-		if err!=nil { return err }
-	case srv.WriterEx!=nil:
-		ide[len(id)]='x'
-		err = srv.WriterEx.BucketPutExpire(bkt,ide,xover,expire)
-		if err!=nil { return err }
+	if s.UseFastOver { nxover,xover = xover,nxover }
+	
+	if srv.WriterEx!=nil {
+		/*
+		If the bucket sits in a remote node, srv.WriterEx is set with an
+		implementation of bucketstore.BucketWEx (which is a *kvrpc.Client),
+		which's BucketPutExpire() method will always fail. We catch that
+		error case by checking the returned error for being a
+		selerr.TNotImplemented instance.
 		
-		ide[len(id)]='h'
-		err = srv.WriterEx.BucketPutExpire(bkt,ide,head,expire)
-		if err!=nil { return err }
+		We write the header first, since it is non-optional like xover
+		and we use the first performed write for our check, so it must
+		not be optional.
+		*/
+		*bts='h'
+		err = srv.WriterEx.BucketPutExpire(bkt,idb.Bytes(),head,expire)
+		if _,ok := err.(selerr.TNotImplemented); ok { goto onWriter }
+		if err!=nil { return }
 		
-		ide[len(id)]='b'
-		err = srv.WriterEx.BucketPutExpire(bkt,ide,body,expire)
-		if err!=nil { return err }
+		*bts='x'
+		if len(xover)>0 { err = srv.WriterEx.BucketPutExpire(bkt,idb.Bytes(),xover,expire) }
+		if err!=nil { return }
 		
-		err = s.Session.Query(`
-		INSERT INTO article_locs
-		 (messageid,recid,tmbmb,obkt,hbkt,bbkt,obkp,hbkp,bbkp) VALUES
-		 (?        ,?    ,true ,?   ,?   ,?   ,true,true,true) USING TTL ?
-		`,id       ,rid        ,bkt ,bkt ,bkt                           ,secs).Exec()
-		if err!=nil { return err }
-	case srv.Writer!=nil  && s.UseFastOver:
-		err = s.Session.Query(`
-		INSERT INTO article_locs
-		 (messageid,recid,hbkt,bbkt) VALUES
-		 (?        ,?    ,?   ,?)
-		`,id       ,rid  ,bkt ,bkt).Exec()
-		if err!=nil { return err }
+		*bts='b'
+		err = srv.WriterEx.BucketPutExpire(bkt,idb.Bytes(),body,expire)
+		if err!=nil { return }
 		
-		ide[len(id)]='h'
-		err = srv.Writer.BucketPut(bkt,ide,head)
-		if err!=nil { return err }
-		
-		ide[len(id)]='b'
-		err = srv.Writer.BucketPut(bkt,ide,body)
-		if err!=nil { return err }
+		secs := int64(time.Until(time.Unix(int64(expire),0))/time.Second)+1
 		
 		err = s.Session.Query(`
 		INSERT INTO article_locs
-		 (messageid,recid,tmbmb,xover,hbkp,bbkp) VALUES
-		 (?        ,?    ,true ,?    ,true,true) USING TTL ?
-		`,id       ,rid        ,xover                      ,secs).Exec()
-		if err!=nil { return err }
-	case srv.Writer!=nil:
-		err = s.Session.Query(`
-		INSERT INTO article_locs
-		 (messageid,recid,obkt,hbkt,bbkt) VALUES
-		 (?        ,?    ,?   ,?   ,?)
-		`,id       ,rid  ,bkt ,bkt ,bkt).Exec()
-		if err!=nil { return err }
-		
-		ide[len(id)]='x'
-		err = srv.Writer.BucketPut(bkt,ide,xover)
-		if err!=nil { return err }
-		
-		ide[len(id)]='h'
-		err = srv.Writer.BucketPut(bkt,ide,head)
-		if err!=nil { return err }
-		
-		ide[len(id)]='b'
-		err = srv.Writer.BucketPut(bkt,ide,body)
-		if err!=nil { return err }
-		
-		err = s.Session.Query(`
-		INSERT INTO article_locs
-		 (messageid,recid,tmbmb,obkp,hbkp,bbkp) VALUES
-		 (?        ,?    ,true ,true,true,true) USING TTL ?
-		`,id       ,rid                                  ,secs).Exec()
-		if err!=nil { return err }
-	default:return articlestore.VEFail
+		 (messageid,recid,avail,xover ,bucket,keep,exp   ) VALUES
+		 (?        ,?    ,true ,?     ,?     ,true,?     ) USING TTL ?
+		`,id       ,rid        ,nxover,bkt        ,expire           ,secs).Exec()
+		return
 	}
-	return nil
+	onWriter:
+	if srv.Writer!=nil {
+		err = s.Session.Query(`
+		INSERT INTO article_locs
+		 (messageid,recid,bucket,exp   ) VALUES
+		 (?        ,?    ,?     ,?     )
+		`,id       ,rid  ,bkt   ,expire).Exec()
+		if err!=nil { return }
+		
+		*bts='x'
+		if len(xover)>0 { err = srv.Writer.BucketPut(bkt,idb.Bytes(),xover) }
+		if err!=nil { return }
+		
+		*bts='h'
+		err = srv.Writer.BucketPut(bkt,idb.Bytes(),head)
+		if err!=nil { return }
+		
+		*bts='b'
+		err = srv.Writer.BucketPut(bkt,idb.Bytes(),body)
+		if err!=nil { return }
+		
+		secs := int64(time.Until(time.Unix(int64(expire),0))/time.Second)+1
+		
+		err = s.Session.Query(`
+		INSERT INTO article_locs
+		 (messageid,recid,xover ,avail,keep) VALUES
+		 (?        ,?    ,?     ,true ,true) USING TTL ?
+		`,id       ,rid  ,nxover                      ,secs).Exec()
+		return
+	}
+	return articlestore.VEFail
 }
 var _ articlestore.StorageW = (*StoreWriter)(nil)
 

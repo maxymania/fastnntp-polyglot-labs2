@@ -20,24 +20,17 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+/*
+Error codes.
+*/
+package selerr
 
-package chybrid
 
-import "github.com/gocql/gocql"
+type TNotImplemented struct{}
+func (TNotImplemented) Error() string { return "Not implemented" }
+var ENotImplemented error = TNotImplemented{}
 
-func Initialize(session *gocql.Session) {
-	session.Query(`
-	CREATE TABLE IF NOT EXISTS article_locs (
-		messageid blob,
-		recid uuid,
-		avail boolean,
-		xover blob,
-		bucket blob,
-		keep boolean,
-		exp bigint,
-		PRIMARY KEY(messageid,recid)
-	)
-	`).Exec()
-}
-
+type TNoSuchBucket struct{}
+func (TNoSuchBucket) Error() string { return "No such bucket" }
+var ENoSuchBucket error = TNoSuchBucket{}
 

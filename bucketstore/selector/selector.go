@@ -23,12 +23,14 @@ SOFTWARE.
 
 package selector
 
-import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore"
+//import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore"
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/bucketmap"
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/netkv"
 import "github.com/maxymania/fastnntp-polyglot-labs/bufferex"
+import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/selerr"
 
-var notImpl = bucketstore.EFail
+var notImpl = selerr.ENotImplemented
+var notBucket = selerr.ENoSuchBucket
 
 type Selector struct {
 	BM *bucketmap.BucketMap
@@ -39,7 +41,8 @@ func (s *Selector) BucketGet(bucket, key []byte) (bufferex.Binary, error) {
 		if b.Reader==nil { return bufferex.Binary{},notImpl }
 		return b.Reader.BucketGet(bucket,key)
 	}
-	b,_ := s.BM.Obtain(bucket)
+	b,ok := s.BM.Obtain(bucket)
+	if !ok { return bufferex.Binary{},notBucket }
 	if b.Reader==nil { return bufferex.Binary{},notImpl }
 	return b.Reader.BucketGet(bucket,key)
 }
@@ -48,7 +51,8 @@ func (s *Selector) BucketPut(bucket, key, value []byte) error {
 		if b.Writer==nil { return notImpl }
 		return b.Writer.BucketPut(bucket,key,value)
 	}
-	b,_ := s.BM.Obtain(bucket)
+	b,ok := s.BM.Obtain(bucket)
+	if !ok { return notBucket }
 	if b.Writer==nil { return notImpl }
 	return b.Writer.BucketPut(bucket,key,value)
 }
@@ -57,7 +61,8 @@ func (s *Selector) BucketDelete(bucket, key []byte) error {
 		if b.Writer==nil { return notImpl }
 		return b.Writer.BucketDelete(bucket,key)
 	}
-	b,_ := s.BM.Obtain(bucket)
+	b,ok := s.BM.Obtain(bucket)
+	if !ok { return notBucket }
 	if b.Writer==nil { return notImpl }
 	return b.Writer.BucketDelete(bucket,key)
 }
@@ -66,7 +71,8 @@ func (s *Selector) BucketPutExpire(bucket, key, value []byte, expiresAt uint64) 
 		if b.WriterEx==nil { return notImpl }
 		return b.WriterEx.BucketPutExpire(bucket,key,value,expiresAt)
 	}
-	b,_ := s.BM.Obtain(bucket)
+	b,ok := s.BM.Obtain(bucket)
+	if !ok { return notBucket }
 	if b.WriterEx==nil { return notImpl }
 	return b.WriterEx.BucketPutExpire(bucket,key,value,expiresAt)
 }

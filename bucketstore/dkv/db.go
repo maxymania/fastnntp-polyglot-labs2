@@ -41,7 +41,11 @@ func converte(e error) error {
 }
 
 func OpenQuick(path string) (buck Bucket,err error) {
-	buck.DB,err = badger.Open(badger.Options{Dir:path,ValueDir:path})
+	opts := badger.DefaultOptions
+	opts.Dir = path
+	opts.ValueDir = path
+	//opts.ValueLogFileSize = 1<<27
+	buck.DB,err = badger.Open(opts)
 	return
 }
 
