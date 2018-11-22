@@ -38,6 +38,11 @@ import "github.com/gocql/gocql"
 import "net"
 import "io"
 
+type Cassa struct{
+	Keyspace string
+	Hosts []string
+}
+
 /*
 Config data structure. To be parsed with confl.
 	# Memberlist/Cluster settings
@@ -77,10 +82,7 @@ Config data structure. To be parsed with confl.
 		"G:\bucket"
 	]
 */
-type Cassa struct{
-	Keyspace string
-	Hosts []string
-}
+
 type Config struct{
 	runner.Configuration
 	Service runner.Bind
@@ -100,7 +102,6 @@ func (bcfg *Config) NCluster() (*cluster.Deleg,error) {
 	for _,buk := range bcfg.Buckets {
 		openBucket(buk,d)
 	}
-	sel := new(netsel.NodeSelector).Init(d)
 	
 	if bcfg.Service.Port!=0 {
 		cluster := gocql.NewCluster(bcfg.Cassandra.Hosts...)
@@ -108,6 +109,8 @@ func (bcfg *Config) NCluster() (*cluster.Deleg,error) {
 		cluster.Consistency = gocql.Quorum
 		session,e := cluster.CreateSession()
 		if e!=nil { return nil,e }
+		
+		sel := new(netsel.NodeSelector).Init(d)
 		
 		sched := new(bucketsched.BucketScheduler)
 		sched.D = d
