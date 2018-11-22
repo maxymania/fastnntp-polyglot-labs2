@@ -102,16 +102,16 @@ func (bcfg *Config) NCluster() (*cluster.Deleg,error) {
 	}
 	sel := new(netsel.NodeSelector).Init(d)
 	
-	sched := new(bucketsched.BucketScheduler)
-	sched.D = d
-	sched.Start()
-	
 	if bcfg.Service.Port!=0 {
 		cluster := gocql.NewCluster(bcfg.Cassandra.Hosts...)
 		cluster.Keyspace = bcfg.Cassandra.Keyspace
 		cluster.Consistency = gocql.Quorum
 		session,e := cluster.CreateSession()
 		if e!=nil { return nil,e }
+		
+		sched := new(bucketsched.BucketScheduler)
+		sched.D = d
+		sched.Start()
 		
 		sw := &chybrid.StoreWriter{Sched:sched,Flook:sel,Session:session,UseFastOver:true}
 		sr := &chybrid.StoreReader{Bucket:sel,Session:session}
