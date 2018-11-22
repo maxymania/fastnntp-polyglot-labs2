@@ -53,6 +53,12 @@ type NetKVMap struct {
 	nwk map[string]*Session
 	glo map[string]bool
 }
+func (n *NetKVMap) GetBucketList() []string {
+	n.mtx.RLock(); defer n.mtx.RUnlock()
+	sl := make([]string,len(n.nwk))
+	for s := range n.nwk { sl = append(sl,s) }
+	return sl
+}
 func (n *NetKVMap) Init() {
 	n.nwk = make(map[string]*Session)
 	n.glo = make(map[string]bool)

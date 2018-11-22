@@ -25,8 +25,17 @@ Article-cassandra hybrid store.
 */
 package articlechs
 
+import "github.com/maxymania/fastnntp-polyglot-labs2/articlestore/chybrid"
+import "github.com/maxymania/fastnntp-polyglot-labs2/articlestore/netwire"
+
+import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/cluster"
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/cluster/runner"
+import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/cluster/bucketsched"
+import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/netsel"
+
 import "github.com/lytics/confl"
+import "github.com/gocql/gocql"
+import "net"
 import "io"
 
 /*
@@ -49,12 +58,14 @@ Config data structure. To be parsed with confl.
 		port 63300
 	}
 	# Cassandra-cluster
-	cassandra [
-		"192.168.1.1"
-		"192.168.1.2"
-		"192.168.1.3"
-		'E:\newsorage'
-	]
+	cassandra {
+		keyspace mydb
+		hosts [
+			"192.168.1.1"
+			"192.168.1.2"
+			"192.168.1.3"
+		]
+	}
 	# Predefined Bucket Locations
 	# Please only specify absolute paths.
 	buckets [
@@ -66,10 +77,14 @@ Config data structure. To be parsed with confl.
 		"G:\bucket"
 	]
 */
+type Cassa struct{
+	Keyspace string
+	Hosts []string
+}
 type Config struct{
 	runner.Configuration
 	Service runner.Bind
-	Cassandra []string
+	Cassandra Cassa
 	Buckets []string
 }
 func (bcfg *Config) LoadBytes(b []byte) error {
@@ -79,12 +94,37 @@ func (bcfg *Config) Load(r io.Reader) error {
 	return confl.NewDecoder(r).Decode(bcfg)
 }
 func (bcfg *Config) NCluster() (*cluster.Deleg,error) {
+	
 	d,e := bcfg.Configuration.NCluster()
-	if e!=nil {
-		for _,buk := range bcfg.Buckets {
-			openBucket(buk,d)
-		}
+	if e!=nil { return nil,e }
+	for _,buk := range bcfg.Buckets {
+		openBucket(buk,d)
 	}
+	sel := new(netsel.NodeSelector).Init(d)
+	
+	sched := new(bucketsched.BucketScheduler)
+	sched.D = d
+	sched.Start()
+	
+	if bcfg.Service.Port!=0 {
+		cluster := gocql.NewCluster(bcfg.Cassandra.Hosts...)
+		cluster.Keyspace = bcfg.Cassandra.Keyspace
+		cluster.Consistency = gocql.Quorum
+		session,e := cluster.CreateSession()
+		if e!=nil { return nil,e }
+		
+		sw := &chybrid.StoreWriter{Sched:sched,Flook:sel,Session:session,UseFastOver:true}
+		sr := &chybrid.StoreReader{Bucket:sel,Session:session}
+		
+		addr := bcfg.Bind.Addr
+		if bcfg.Service.Addr!="" {
+			addr = bcfg.Service.Addr
+		}
+		l,e := net.ListenTCP("tcp", &net.TCPAddr{IP:net.ParseIP(addr),Port:bcfg.Service.Port})
+		if e!=nil { return nil,e }
+		go netwire.NewServer(sr,sw).Serve(l)
+	}
+	
 	return d,e
 }
 

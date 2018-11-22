@@ -22,22 +22,3 @@ SOFTWARE.
 
 
 package articlechs
-
-import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/cluster"
-import "math/rand"
-
-type BucketScheduler struct {
-	_willChange struct{}
-	D *cluster.Deleg
-}
-
-func (s *BucketScheduler) NextBucket() ([]byte, bool) {
-	// TODO: we need a better way to do this.
-	bkts := s.D.NM.GetBucketList()
-	switch len(bkts) {
-	case 0: return nil,false
-	case 1: return []byte(bkts[0]),true
-	}
-	return []byte(bkts[rand.Intn(len(bkts))]),true
-}
-
