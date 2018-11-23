@@ -31,6 +31,7 @@ import "sync"
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/globmap"
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/bucketmap"
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/netkv"
+import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/healthmap"
 import "github.com/vmihailenco/msgpack"
 import "github.com/byte-mug/golibs/msgpackx"
 import "github.com/hashicorp/memberlist"
@@ -44,7 +45,24 @@ const (
 	// &NetKvStore{}
 	NetAdd
 	NetRem
+	
+	// &HealthEvent{}
+	PutHealth
 )
+
+type HealthEvent healthmap.Health
+func (c HealthEvent) Invalidates(b memberlist.Broadcast) bool {
+	switch o := b.(type) {
+	case *HealthEvent: return string(c.Name)==string(o.Name)
+	case HealthEvent: return string(c.Name)==string(o.Name)
+	}
+	return false
+}
+func (c HealthEvent) Message() []byte {
+	b,_ := msgpackx.Marshal(PutHealth,c.Name,c.Writable)
+	return b
+}
+func (c HealthEvent) Finished() {}
 
 type NetKvStore struct{
 	// NetAdd,NetRem
@@ -131,6 +149,7 @@ type Deleg struct{
 	ML  *memberlist.Memberlist
 	NM  globmap.NodeMap
 	BM  bucketmap.BucketMap
+	HM  healthmap.HealthMap
 	NKV netkv.NetKVMap
 	
 	Dist DistanceMeter
@@ -168,6 +187,7 @@ func (d *Deleg) Init() {
 	d.TLQ.RetransmitMult = 1
 	d.NM.Init()
 	d.BM.Init()
+	d.HM.Init()
 	d.NKV.Init()
 	d.nkvAdd = make(nkvm)
 	d.nkvRem = make(nkvm)
@@ -233,6 +253,12 @@ func (d *Deleg) NotifyMsg(msg []byte) {
 				if dec.DecodeMulti(&c.Loc,&c.Prov,&c.Bucket,&c.Meta)!=nil { return }
 				d.handleNetKvStore(c)
 			}
+		case PutHealth:
+			{
+				c := new(HealthEvent)
+				if dec.DecodeMulti(&c.Name,&c.Writable)!=nil { return }
+				d.HM.SetWritable(c.Name,c.Writable)
+			}
 		}
 	}
 }
@@ -258,6 +284,9 @@ func (d *Deleg) NotifyJoin(n *memberlist.Node) {
 		}
 		for _,e := range d.NKV.GetLocalBuckets() {
 			enc.EncodeMulti(CmdAdd,d.Self,[]byte(e))
+		}
+		for _,e := range d.HM.GetAll() {
+			enc.EncodeMulti(PutHealth,e.Name,e.Writable)
 		}
 		d.getNetKvStoreEncoded(&buf)
 		if buf.Len()>0 {
@@ -320,4 +349,9 @@ func (d *Deleg) OfferNetKvStore(n *NetKvStore) {
 	d.handleNetKvStore(n)
 	d.TLQ.QueueBroadcast(n)
 }
-
+// ----
+func (d *Deleg) IssueHealth(h healthmap.Health) {
+	d.HM.SetWritable(h.Name,h.Writable)
+	d.TLQ.QueueBroadcast(HealthEvent(h))
+}
+var _ healthmap.HealthReceiver = (*Deleg)(nil)
