@@ -70,8 +70,10 @@ func (s *bucketList) initialize() {
 	s.exist = make(map[string]uint)
 }
 func (s *bucketList) update(lists [][]string) {
+	s.o.Do(s.initialize)
 	for _,list := range lists {
 		for _,elem := range list {
+			if len(elem)==0 { continue }
 			s.exist[elem]++
 		}
 	}
