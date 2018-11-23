@@ -31,6 +31,7 @@ import "github.com/maxymania/fastnntp-polyglot-labs2/articlestore/netwire"
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/cluster"
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/cluster/runner"
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/cluster/bucketsched"
+import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/healthmap"
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/netsel"
 
 import "github.com/lytics/confl"
@@ -126,7 +127,7 @@ func (bcfg *Config) NCluster() (*cluster.Deleg,error) {
 		if e!=nil { return nil,e }
 		go netwire.NewServer(sr,sw).Serve(l)
 	}
-	
+	healthmap.AddHealthReceiver(d)
 	return d,e
 }
 

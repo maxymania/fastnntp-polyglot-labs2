@@ -96,6 +96,22 @@ type BucketScheduler struct {
 	bucketList
 	D *cluster.Deleg
 }
+func (s *BucketScheduler) NextBucket() ([]byte, bool) {
+	bkts := s.list
+	l := len(bkts)
+	switch l {
+	case 0: return nil,false
+	case 1:
+		if !s.D.HM.GetWritable(bkts[0],true) { return nil,false }
+		return bkts[0],true
+	}
+	i := rand.Intn(l)
+	if s.D.HM.GetWritable(bkts[i],true) { return bkts[i],true }
+	for j := (i+1)%l ; i!=j ; j = (j+1)%l {
+		if s.D.HM.GetWritable(bkts[i],true) { return bkts[i],true }
+	}
+	return nil,false
+}
 func (s *BucketScheduler) Start() {
 	go s.perform()
 }
