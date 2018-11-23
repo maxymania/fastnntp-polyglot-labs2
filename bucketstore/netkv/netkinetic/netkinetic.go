@@ -28,8 +28,10 @@ import kinetic "github.com/Kinetic/kinetic-go"
 import "github.com/maxymania/fastnntp-polyglot-labs/bufferex"
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore"
 import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/netkv"
+import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/healthmap"
 import "github.com/vmihailenco/msgpack"
-
+import "sync"
+import "time"
 
 type Bucket struct {
 	Cli *kinetic.BlockConnection
@@ -71,6 +73,36 @@ func (b *Bucket) BucketDelete(bucket, key []byte) error {
 }
 var _ bucketstore.BucketW = (*Bucket)(nil)
 
+type ReportingBucket struct {
+	Bucket
+	Name []byte
+	isClosed bool
+	mutex sync.RWMutex
+}
+func (b *ReportingBucket) Close() error {
+	b.mutex.RLock(); defer b.mutex.RUnlock()
+	b.isClosed = true
+	b.Cli.Close()
+	return nil
+}
+func (b *ReportingBucket) checkHealth() (cls bool){
+	b.mutex.Lock(); defer b.mutex.Unlock()
+	if b.isClosed { return true }
+	log,stat,err := b.Cli.GetLog([]kinetic.LogType{kinetic.LogTypeCapacities})
+	if err!=nil || stat.Code!=kinetic.OK{ return }
+	cap := log.Capacity
+	pf := int64(float64(cap.CapacityInBytes)*(1.0-float64(cap.PortionFull)))
+	healthmap.IssueHealth(healthmap.Health{b.Name,pf>=(1<<25)})
+	return
+}
+func (b *ReportingBucket) CheckLoop() {
+	t := time.Tick(time.Second*20)
+	for {
+		if b.checkHealth() { return }
+		<- t
+	}
+}
+
 const PROVIDER = "kinetic"
 
 func Generate(co kinetic.ClientOptions) []byte {
@@ -101,7 +133,8 @@ func loader(bucket, meta []byte) (*netkv.Session, error) {
 	if err!=nil { return nil,err }
 	bc,err := kinetic.NewBlockConnection(co)
 	if err!=nil { return nil,err }
-	bt := &Bucket{bc}
+	bt := &ReportingBucket{Bucket:Bucket{bc},Name:bucket}
+	go bt.CheckLoop()
 	return &netkv.Session{
 		Closer: bt,
 		Reader: bt,
