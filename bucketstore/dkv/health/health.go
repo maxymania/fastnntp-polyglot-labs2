@@ -21,28 +21,32 @@ SOFTWARE.
 */
 
 
-package articlechs
+package health
 
-import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/cluster"
-import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/bucketmap"
-import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/dkv"
-import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/dkv/health"
-import "github.com/maxymania/fastnntp-polyglot-labs/guido"
-import "os"
-//import "errors"
+import "github.com/ricochet2200/go-disk-usage/du"
+import "github.com/maxymania/fastnntp-polyglot-labs2/bucketstore/healthmap"
+import "time"
 
-//var EPathMismatch = errors.New("EPathMismatch")
+// Minimum is 256 MB
+const minimumAvailable = 1<<28
 
-func openBucket(path string,d *cluster.Deleg) {
-	s,err := os.Stat(path)
-	if err!=nil { return }
-	if !s.IsDir() { return }
-	u,err := guido.GetUID(path)
-	if err!=nil { return }
-	db,err := dkv.OpenQuick(path)
-	if err!=nil { return }
-	bkt := []byte(u.String())
-	d.AddBucket(bkt,bucketmap.Bucket{Reader:db,Writer:db,WriterEx:db})
-	(&health.HealthChecker{Path:path,Bucket:bkt}).Start()
+type HealthChecker struct {
+	Path string
+	Bucket []byte
+	Stop bool
+}
+func (h *HealthChecker) perform() {
+	t := time.Tick(time.Second*30)
+	for {
+		<-t
+		usage := du.NewDiskUsage(h.Path)
+		minsiz := usage.Size()>>10
+		bad := usage.Available()<minimumAvailable || usage.Available()<minsiz
+		
+		healthmap.IssueHealth(healthmap.Health{h.Bucket,!bad})
+	}
+}
+func (h *HealthChecker) Start() {
+	go h.perform()
 }
 

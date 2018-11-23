@@ -38,6 +38,29 @@ type Health struct{
 type HealthReceiver interface{
 	IssueHealth(h Health)
 }
+
+var healthRecvsLock sync.Mutex
+var healthRecvs []HealthReceiver
+func AddHealthReceiver(hr HealthReceiver) {
+	healthRecvsLock.Lock(); defer healthRecvsLock.Unlock()
+	healthRecvs = append(healthRecvs,hr)
+}
+func RemoveHealthReceiver(hr HealthReceiver) {
+	healthRecvsLock.Lock(); defer healthRecvsLock.Unlock()
+	l := len(healthRecvs)-1
+	for i,ohr := range healthRecvs {
+		if ohr!=hr { continue }
+		if i!=l {
+			healthRecvs[i] = healthRecvs[l]
+		}
+		healthRecvs = healthRecvs[:l]
+	}
+}
+func IssueHealth(h Health) {
+	for _,hr := range healthRecvs { if hr!=nil { hr.IssueHealth(h) } }
+}
+
+
 type HealthMap struct {
 	hmap map[string]*Health
 	access sync.RWMutex
