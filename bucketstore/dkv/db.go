@@ -40,10 +40,13 @@ func converte(e error) error {
 	return e
 }
 
+var platformHooks = make([]func(opts *badger.Options),0,16)
+
 func OpenQuick(path string) (buck Bucket,err error) {
 	opts := badger.DefaultOptions
 	opts.Dir = path
 	opts.ValueDir = path
+	for _,hook := range platformHooks { hook(&opts) }
 	//opts.ValueLogFileSize = 1<<27
 	buck.DB,err = badger.Open(opts)
 	return

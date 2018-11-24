@@ -108,7 +108,7 @@ func (s *BucketScheduler) NextBucket() ([]byte, bool) {
 	i := rand.Intn(l)
 	if s.D.HM.GetWritable(bkts[i],true) { return bkts[i],true }
 	for j := (i+1)%l ; i!=j ; j = (j+1)%l {
-		if s.D.HM.GetWritable(bkts[i],true) { return bkts[i],true }
+		if s.D.HM.GetWritable(bkts[j],true) { return bkts[j],true }
 	}
 	return nil,false
 }

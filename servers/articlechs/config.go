@@ -78,9 +78,8 @@ Config data structure. To be parsed with confl.
 		/path/to/bucket
 		'/second/bucket'
 		"/third/bucket"
-		E:\bucket
-		'F:\bucket'
-		"G:\bucket"
+		'E:\bucket'
+		"F:\bucket"
 	]
 */
 type Config struct{
@@ -109,6 +108,8 @@ func (bcfg *Config) NCluster() (*cluster.Deleg,error) {
 		cluster.Consistency = gocql.Quorum
 		session,e := cluster.CreateSession()
 		if e!=nil { return nil,e }
+		
+		chybrid.Initialize(session)
 		
 		sel := new(netsel.NodeSelector).Init(d)
 		
